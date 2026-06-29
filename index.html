@@ -1,0 +1,1853 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="營建日報">
+<meta name="theme-color" content="#2563EB">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>營建日報系統</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--primary:#2563EB;--primary-light:#EFF6FF;--green:#059669;--green-light:#ECFDF5;--red:#DC2626;--red-light:#FEF2F2;--amber:#D97706;--amber-light:#FFFBEB;--gray:#6B7280;--gray-light:#F3F4F6;--border:#E5E7EB;--bg:#F9FAFB;--white:#FFFFFF;--text:#111827;--text2:#6B7280;--text3:#9CA3AF;--radius:12px;--shadow:0 1px 3px rgba(0,0,0,0.08)}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:16px;line-height:1.5;max-width:430px;margin:0 auto;min-height:100vh;overflow-x:hidden}
+.screen{display:none;flex-direction:column;min-height:100vh;padding-bottom:80px}
+.screen.active{display:flex}
+.top-bar{position:sticky;top:0;background:var(--white);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:12px;z-index:10}
+.top-bar h1{font-size:17px;font-weight:600;flex:1}
+.top-bar .back{width:36px;height:36px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;background:var(--white)}
+.content{flex:1;padding:16px}
+.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:var(--white);border-top:1px solid var(--border);display:flex;z-index:10}
+.bottom-nav .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:2px;cursor:pointer;font-size:11px;color:var(--text3)}
+.bottom-nav .nav-item.active{color:var(--primary)}
+.bottom-nav .nav-item .nav-icon{font-size:22px}
+.card{background:var(--white);border-radius:var(--radius);border:1px solid var(--border);padding:16px;margin-bottom:12px}
+.card-title{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card-title .icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 20px;border-radius:var(--radius);font-size:16px;font-weight:600;cursor:pointer;border:none;width:100%;transition:transform 0.1s}
+.btn:active{transform:scale(0.97)}
+.btn-primary{background:var(--primary);color:var(--white)}
+.btn-green{background:var(--green);color:var(--white)}
+.btn-outline{background:var(--white);color:var(--primary);border:1.5px solid var(--primary)}
+.btn-sm{padding:10px 16px;font-size:14px;width:auto}
+.progress-bar{display:flex;gap:6px;justify-content:center;padding:12px 16px}
+.progress-dot{height:4px;border-radius:2px;background:var(--border);flex:1;max-width:48px;transition:background 0.3s}
+.progress-dot.active{background:var(--primary)}
+.progress-dot.done{background:var(--green)}
+.step-label{text-align:center;font-size:13px;color:var(--text2);margin-bottom:16px}
+.weather-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.weather-col label{display:block;font-size:13px;color:var(--text2);margin-bottom:8px;text-align:center}
+.weather-options{display:flex;gap:6px;justify-content:center}
+.weather-btn{width:60px;height:56px;border-radius:var(--radius);border:1.5px solid var(--border);background:var(--white);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-size:24px;gap:2px;transition:all 0.15s}
+.weather-btn span{font-size:11px;color:var(--text2)}
+.weather-btn.selected{border-color:var(--primary);background:var(--primary-light)}
+.crew-row{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px}
+.crew-label{font-size:15px;font-weight:500}
+.crew-ctrl{display:flex;align-items:center;gap:14px}
+.crew-btn{width:44px;height:44px;border-radius:50%;border:1.5px solid var(--border);background:var(--white);font-size:22px;font-weight:500;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text);transition:all 0.15s}
+.crew-btn:active{background:var(--primary-light);border-color:var(--primary)}
+.crew-num{font-size:20px;font-weight:600;min-width:32px;text-align:center}
+.cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.cat-btn{padding:14px 10px;border-radius:var(--radius);border:1.5px solid var(--border);background:var(--white);text-align:center;cursor:pointer;transition:all 0.15s}
+.cat-btn .cat-icon{font-size:28px;display:block;margin-bottom:4px}
+.cat-btn .cat-name{font-size:14px;font-weight:500}
+.cat-btn .cat-desc{font-size:11px;color:var(--text3);margin-top:2px}
+.cat-btn.selected{border-color:var(--primary);background:var(--primary-light)}
+.item-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px}
+.item-check{width:24px;height:24px;border-radius:6px;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all 0.15s}
+.item-check.on{background:var(--primary);border-color:var(--primary)}
+.item-check.on::after{content:"✓";color:var(--white);font-size:14px;font-weight:700}
+.item-name{flex:1;font-size:14px}
+.item-qty{width:56px;height:38px;border-radius:8px;border:1.5px solid var(--border);text-align:center;font-size:15px;font-weight:500;background:var(--white);color:var(--text)}
+.item-unit{font-size:12px;color:var(--text2);min-width:22px}
+.add-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;font-size:14px;color:var(--primary);cursor:pointer;border:1.5px dashed var(--primary);border-radius:var(--radius);margin-top:8px;background:var(--white);font-weight:500}
+.sop-box{background:var(--amber-light);border:1px solid #FDE68A;border-radius:var(--radius);padding:12px 14px;margin-bottom:10px}
+.sop-title{font-size:13px;font-weight:600;color:var(--amber);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.sop-text{font-size:13px;color:#92400E;line-height:1.7}
+.textarea{width:100%;min-height:80px;border-radius:var(--radius);border:1.5px solid var(--border);padding:12px 14px;font-size:15px;font-family:inherit;color:var(--text);resize:vertical;line-height:1.6;background:var(--white)}
+.textarea::placeholder{color:var(--text3)}
+.log-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px}
+.log-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.log-title{font-size:15px;font-weight:600}
+.badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px}
+.badge-am{background:var(--primary-light);color:var(--primary)}
+.badge-pm{background:var(--amber-light);color:var(--amber)}
+.badge-sub{background:var(--red-light);color:var(--red)}
+.log-row{display:flex;gap:8px;margin-bottom:8px}
+.log-field{flex:1}
+.log-label{font-size:11px;color:var(--text3);margin-bottom:3px;font-weight:500}
+.log-value{font-size:13px;color:var(--text);padding:8px 10px;background:var(--gray-light);border-radius:8px}
+.photo-area{border:2px dashed var(--border);border-radius:var(--radius);padding:24px;text-align:center;margin-top:10px;cursor:pointer}
+.photo-area .photo-icon{font-size:32px;color:var(--text3);margin-bottom:6px}
+.photo-area p{font-size:13px;color:var(--text3)}
+.pdf-page{background:var(--white);border:1px solid var(--border);border-radius:4px;padding:20px 16px;margin-bottom:16px;box-shadow:var(--shadow)}
+.pdf-table{width:100%;border-collapse:collapse;font-size:12px}
+.pdf-table th,.pdf-table td{border:1px solid #999;padding:5px 8px;text-align:left}
+.pdf-table th{background:#f0f0f0;font-weight:600}
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.info-row:last-child{border-bottom:none}
+.info-label{font-size:13px;color:var(--text2)}
+.info-value{font-size:14px;font-weight:500}
+.tag{display:inline-block;font-size:12px;padding:4px 12px;border-radius:20px;margin:2px;cursor:pointer;border:1px solid var(--border);background:var(--white);transition:all 0.15s}
+.tag.on{background:var(--green-light);border-color:var(--green);color:#065F46}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.stat-box{background:var(--gray-light);border-radius:8px;padding:12px;text-align:center}
+.stat-num{font-size:22px;font-weight:700;color:var(--primary)}
+.stat-label{font-size:11px;color:var(--text2);margin-top:2px}
+.proto-banner{background:linear-gradient(135deg,#2563EB,#7C3AED);color:var(--white);padding:14px 16px;text-align:center;font-size:12px;font-weight:500;letter-spacing:0.5px}
+.fade-in{animation:fadeIn 0.25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<div class="proto-banner">📐 互動原型 — 點擊操作體驗完整流程</div>
+
+<!-- ========== 首頁 ========== -->
+<div class="screen active" id="screen-home">
+  <div class="top-bar">
+    <h1>🏗️ 營建日報系統</h1>
+  </div>
+  <div class="content">
+
+    <div class="card" style="padding:20px">
+      <div style="font-size:18px;font-weight:700;margin-bottom:4px" id="home-project-name">拾光薈二期新建工程</div>
+      <div style="font-size:14px;color:var(--text2);margin-bottom:14px" id="home-company-name">群盛營造股份有限公司</div>
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="stat-num" id="home-cal-days">27</div>
+          <div class="stat-label">施工天數</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num" id="home-remain-days">705</div>
+          <div class="stat-label">剩餘天數</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="goTo('screen-step1')" style="margin-bottom:12px;padding:18px 20px;font-size:17px">
+      開始填寫今日日報 →
+      <div style="font-size:12px;font-weight:400;opacity:0.85;margin-top:2px" id="home-report-date">2026-06-27（五）</div>
+    </button>
+
+    <div class="card">
+      <div class="card-title"><div class="icon" style="background:var(--green-light);color:var(--green)">📊</div>本週概覽</div>
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="stat-num" id="stat-reports">0</div>
+          <div class="stat-label">已完成日報</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num" id="stat-crew">0</div>
+          <div class="stat-label">累計人次</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num" id="stat-logs">0</div>
+          <div class="stat-label">施工紀錄</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num" id="stat-hours">0</div>
+          <div class="stat-label">總工時</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" onclick="goTo('screen-settings')" style="cursor:pointer">
+      <div class="card-title"><div class="icon" style="background:var(--gray-light);color:var(--gray)">⚙️</div>專案設定</div>
+      <p style="font-size:13px;color:var(--text2)">管理專案資訊、預設材料清單、機具清單、工種分類</p>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <div class="nav-item active"><div class="nav-icon">🏠</div>首頁</div>
+    <div class="nav-item" onclick="goTo('screen-history')"><div class="nav-icon">📁</div>歷史日報</div>
+    <div class="nav-item" onclick="goTo('screen-settings')"><div class="nav-icon">⚙️</div>設定</div>
+  </div>
+</div>
+
+<!-- ========== 專案設定 ========== -->
+<div class="screen" id="screen-settings">
+  <div class="top-bar">
+    <div class="back" onclick="goTo('screen-home')">←</div>
+    <h1>專案設定</h1>
+  </div>
+  <div class="content fade-in">
+    <div class="card">
+      <div class="card-title">📌 基本資訊</div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">專案名稱</label>
+        <input type="text" value="拾光薈二期新建工程" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:15px">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">公司名稱</label>
+        <input type="text" value="群盛營造股份有限公司" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:15px">
+      </div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1">
+          <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">開工日期</label>
+          <input type="date" value="2026-06-01" style="width:100%;padding:10px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">竣工日期</label>
+          <input type="date" value="2028-06-01" style="width:100%;padding:10px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">👷 工種分類</div>
+      <div>
+        <span class="tag on">裝修工程</span>
+        <span class="tag on">結構工程</span>
+        <span class="tag on">基礎工程</span>
+        <span class="tag on">機電工程</span>
+        <span class="tag on">假設工程</span>
+      </div>
+      <div class="add-btn" id="settings-crew-add-btn" onclick="showSettingsCrewAdd()" style="margin-top:10px">＋ 新增工種</div>
+      <div id="settings-crew-add-form" style="display:none;margin-top:8px">
+        <div style="display:flex;gap:8px">
+          <input id="settings-crew-new-name" type="text" placeholder="工種名稱" style="flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px">
+          <button class="btn btn-primary btn-sm" onclick="confirmSettingsCrewAdd()">確認</button>
+          <button class="btn btn-outline btn-sm" onclick="cancelSettingsCrewAdd()">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📦 材料清單</div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:8px">填寫日報時可勾選使用的材料</p>
+      <div id="settings-mat-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🚜 機具清單</div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:8px">填寫日報時可勾選使用的機具</p>
+      <div id="settings-equip-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔑 簽核人員</div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:8px">PDF 上會保留職位名稱與簽名欄</p>
+      <div style="display:flex;flex-wrap:wrap;gap:6px" id="settings-signer-tags"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Step 1: 天氣 ========== -->
+<div class="screen" id="screen-step1">
+  <div class="top-bar">
+    <div class="back" onclick="goTo('screen-home')">←</div>
+    <h1>填寫日報</h1>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-dot active"></div>
+    <div class="progress-dot"></div>
+    <div class="progress-dot"></div>
+    <div class="progress-dot"></div>
+    <div class="progress-dot"></div>
+  </div>
+  <div class="step-label">步驟 1 / 5 — 天氣</div>
+  <div class="content fade-in">
+    <div class="card">
+      <div class="card-title">🌤️ 今日天氣</div>
+      <div class="weather-grid">
+        <div class="weather-col">
+          <label>上午</label>
+          <div class="weather-options">
+            <div class="weather-btn selected" onclick="selectWeather(this)">☀️<span>晴</span></div>
+            <div class="weather-btn" onclick="selectWeather(this)">⛅<span>陰</span></div>
+            <div class="weather-btn" onclick="selectWeather(this)">🌧️<span>雨</span></div>
+          </div>
+        </div>
+        <div class="weather-col">
+          <label>下午</label>
+          <div class="weather-options">
+            <div class="weather-btn" onclick="selectWeather(this)">☀️<span>晴</span></div>
+            <div class="weather-btn selected" onclick="selectWeather(this)">⛅<span>陰</span></div>
+            <div class="weather-btn" onclick="selectWeather(this)">🌧️<span>雨</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📅 施工天數</div>
+      <div class="info-row">
+        <span class="info-label">施工天數</span>
+        <span class="info-value" id="step1-construction-days">26 天</span>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="goTo('screen-step2')" style="margin-top:8px">下一步 →</button>
+  </div>
+</div>
+
+<!-- ========== Step 2: 人員 ========== -->
+<div class="screen" id="screen-step2">
+  <div class="top-bar">
+    <div class="back" onclick="goTo('screen-step1')">←</div>
+    <h1>填寫日報</h1>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-dot done"></div>
+    <div class="progress-dot active"></div>
+    <div class="progress-dot"></div>
+    <div class="progress-dot"></div>
+    <div class="progress-dot"></div>
+  </div>
+  <div class="step-label">步驟 2 / 5 — 今日人員</div>
+  <div class="content fade-in">
+
+
+    <div class="crew-row">
+      <span class="crew-label">裝修工程</span>
+      <div class="crew-ctrl">
+        <div class="crew-btn" onclick="adjustCrew(this,-1)">−</div>
+        <span class="crew-num">12</span>
+        <div class="crew-btn" onclick="adjustCrew(this,1)">＋</div>
+      </div>
+    </div>
+    <div class="crew-row">
+      <span class="crew-label">結構工程</span>
+      <div class="crew-ctrl">
+        <div class="crew-btn" onclick="adjustCrew(this,-1)">−</div>
+        <span class="crew-num">8</span>
+        <div class="crew-btn" onclick="adjustCrew(this,1)">＋</div>
+      </div>
+    </div>
+    <div class="crew-row">
+      <span class="crew-label">基礎工程</span>
+      <div class="crew-ctrl">
+        <div class="crew-btn" onclick="adjustCrew(this,-1)">−</div>
+        <span class="crew-num">5</span>
+        <div class="crew-btn" onclick="adjustCrew(this,1)">＋</div>
+      </div>
+    </div>
+    <div class="crew-row">
+      <span class="crew-label">機電工程</span>
+      <div class="crew-ctrl">
+        <div class="crew-btn" onclick="adjustCrew(this,-1)">−</div>
+        <span class="crew-num">3</span>
+        <div class="crew-btn" onclick="adjustCrew(this,1)">＋</div>
+      </div>
+    </div>
+    <div class="crew-row">
+      <span class="crew-label">假設工程</span>
+      <div class="crew-ctrl">
+        <div class="crew-btn" onclick="adjustCrew(this,-1)">−</div>
+        <span class="crew-num">2</span>
+        <div class="crew-btn" onclick="adjustCrew(this,1)">＋</div>
+      </div>
+    </div>
+
+    <div class="add-btn" id="crew-add-btn" onclick="showAddCrewForm()">＋ 新增工種</div>
+    <div id="crew-add-form" style="display:none;margin-top:8px;padding:12px;background:var(--white);border:1.5px solid var(--primary);border-radius:var(--radius)">
+      <div style="font-size:14px;font-weight:600;margin-bottom:8px">新增工種</div>
+      <input id="crew-new-name" type="text" placeholder="輸入工種名稱" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;margin-bottom:8px">
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="confirmAddCrew()" style="flex:1">確認</button>
+        <button class="btn btn-outline btn-sm" onclick="cancelAddCrew()" style="flex:1">取消</button>
+      </div>
+    </div>
+
+    <div style="background:var(--gray-light);border-radius:var(--radius);padding:12px 14px;margin-top:12px;text-align:center">
+      <span style="font-size:13px;color:var(--text2)">今日總人數</span>
+      <div style="font-size:28px;font-weight:700;color:var(--primary)">30</div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-outline" onclick="goTo('screen-step1')" style="flex:1">← 上一步</button>
+      <button class="btn btn-primary" onclick="goTo('screen-step3')" style="flex:1">下一步 →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Step 3: 材料 ========== -->
+<div class="screen" id="screen-step3">
+  <div class="top-bar">
+    <div class="back" onclick="goTo('screen-step2')">←</div>
+    <h1>填寫日報</h1>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-dot done"></div>
+    <div class="progress-dot done"></div>
+    <div class="progress-dot active"></div>
+    <div class="progress-dot"></div>
+    <div class="progress-dot"></div>
+  </div>
+  <div class="step-label">步驟 3 / 5 — 營建材料</div>
+  <div class="content fade-in">
+
+    <div class="carry-forward-banner" style="background:var(--green-light);border:1px solid #A7F3D0;border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:13px;color:#065F46">
+      💡 已帶入昨日資料，勾選今天有進場的材料並修改數量
+    </div>
+
+    <div class="cat-grid" id="mat-cats">
+      <div class="cat-btn selected" onclick="switchMatCat('concrete')"><div class="cat-icon">🧱</div><div class="cat-name">混凝土類</div></div>
+      <div class="cat-btn" onclick="switchMatCat('masonry')"><div class="cat-icon">🏗️</div><div class="cat-name">砌築材料</div></div>
+      <div class="cat-btn" onclick="switchMatCat('sealant')"><div class="cat-icon">🔗</div><div class="cat-name">填縫黏著</div></div>
+      <div class="cat-btn" onclick="switchMatCat('aggregate')"><div class="cat-icon">🪨</div><div class="cat-name">骨材類</div></div>
+      <div class="cat-btn" onclick="switchMatCat('rebar')"><div class="cat-icon">🔩</div><div class="cat-name">鋼筋類</div></div>
+      <div class="cat-btn" onclick="switchMatCat('other')"><div class="cat-icon">📎</div><div class="cat-name">其他</div></div>
+    </div>
+
+    <div id="mat-cat-label" style="font-size:13px;color:var(--text2);margin-bottom:8px;font-weight:500">混凝土類 材料清單</div>
+
+    <div id="mat-list-area">
+      <div class="mat-group" data-cat="concrete">
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">混凝土 5000psi</span><input class="item-qty" value="24"><span class="item-unit">米</span></div>
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">混凝土 2500psi</span><input class="item-qty" value="12"><span class="item-unit">米</span></div>
+        <div class="item-row"><div class="item-check" onclick="toggleCheck(this)"></div><span class="item-name">混凝土 4000psi</span><input class="item-qty" value="" placeholder="—"><span class="item-unit">米</span></div>
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">混凝土 3500psi</span><input class="item-qty" value="8"><span class="item-unit">米</span></div>
+        <div class="item-row"><div class="item-check" onclick="toggleCheck(this)"></div><span class="item-name">混凝土 3000psi</span><input class="item-qty" value="" placeholder="—"><span class="item-unit">米</span></div>
+        <div class="item-row"><div class="item-check" onclick="toggleCheck(this)"></div><span class="item-name">混凝土 2000psi</span><input class="item-qty" value="" placeholder="—"><span class="item-unit">米</span></div>
+      </div>
+      <div class="mat-group" data-cat="masonry" style="display:none">
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">海菜粉</span><input class="item-qty" value="48"><span class="item-unit">包</span></div>
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">七厘石</span><input class="item-qty" value="19"><span class="item-unit">包</span></div>
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">水泥</span><input class="item-qty" value="12"><span class="item-unit">包</span></div>
+        <div class="item-row"><div class="item-check" onclick="toggleCheck(this)"></div><span class="item-name">紅磚</span><input class="item-qty" value="" placeholder="—"><span class="item-unit">塊</span></div>
+      </div>
+      <div class="mat-group" data-cat="sealant" style="display:none">
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">填縫劑（本細）</span><input class="item-qty" value="17"><span class="item-unit">包</span></div>
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">填縫劑（本粗）</span><input class="item-qty" value="16"><span class="item-unit">包</span></div>
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">黏著劑</span><input class="item-qty" value="15"><span class="item-unit">包</span></div>
+      </div>
+      <div class="mat-group" data-cat="aggregate" style="display:none">
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">碎石</span><input class="item-qty" value="36"><span class="item-unit">米</span></div>
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">砂</span><input class="item-qty" value="13"><span class="item-unit">米</span></div>
+      </div>
+      <div class="mat-group" data-cat="rebar" style="display:none">
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">高拉鋼筋</span><input class="item-qty" value="4"><span class="item-unit">噸</span></div>
+        <div class="item-row"><div class="item-check" onclick="toggleCheck(this)"></div><span class="item-name">中拉鋼筋</span><input class="item-qty" value="" placeholder="—"><span class="item-unit">噸</span></div>
+      </div>
+      <div class="mat-group" data-cat="other" style="display:none">
+        <div style="text-align:center;padding:20px;color:var(--text3);font-size:14px">尚無自訂材料，請點擊下方新增</div>
+      </div>
+    </div>
+
+    <div class="add-btn" id="mat-add-btn" onclick="addNewItem('mat')">＋ 新增品項</div>
+    <div id="mat-add-form" style="display:none;margin-top:8px">
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="text" id="mat-new-name" placeholder="材料名稱" style="flex:1;padding:10px 12px;border:1.5px solid var(--primary);border-radius:8px;font-size:14px">
+        <input type="text" id="mat-new-unit" placeholder="單位" style="width:60px;padding:10px 8px;border:1.5px solid var(--primary);border-radius:8px;font-size:14px;text-align:center">
+        <button onclick="confirmAddItem('mat')" style="padding:10px 14px;background:var(--primary);color:var(--white);border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">確認</button>
+        <button onclick="cancelAddItem('mat')" style="padding:10px 12px;background:var(--gray-light);border:none;border-radius:8px;font-size:14px;cursor:pointer">取消</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-outline" onclick="goTo('screen-step2')" style="flex:1">← 上一步</button>
+      <button class="btn btn-primary" onclick="goTo('screen-step4')" style="flex:1">下一步 →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Step 4: 機具 ========== -->
+<div class="screen" id="screen-step4">
+  <div class="top-bar">
+    <div class="back" onclick="goTo('screen-step3')">←</div>
+    <h1>填寫日報</h1>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-dot done"></div>
+    <div class="progress-dot done"></div>
+    <div class="progress-dot done"></div>
+    <div class="progress-dot active"></div>
+    <div class="progress-dot"></div>
+  </div>
+  <div class="step-label">步驟 4 / 5 — 機具設備</div>
+  <div class="content fade-in">
+
+    <div class="carry-forward-banner" style="background:var(--green-light);border:1px solid #A7F3D0;border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:13px;color:#065F46">
+      💡 已帶入昨日資料
+    </div>
+
+    <div class="cat-grid" id="equip-cats">
+      <div class="cat-btn selected" onclick="switchEquipCat('excavate')"><div class="cat-icon">⛏️</div><div class="cat-name">挖掘機具</div></div>
+      <div class="cat-btn" onclick="switchEquipCat('crush')"><div class="cat-icon">🔨</div><div class="cat-name">破碎機具</div></div>
+      <div class="cat-btn" onclick="switchEquipCat('crane')"><div class="cat-icon">🏗️</div><div class="cat-name">吊掛機具</div></div>
+      <div class="cat-btn" onclick="switchEquipCat('transport')"><div class="cat-icon">🚛</div><div class="cat-name">運輸車輛</div></div>
+    </div>
+
+    <div id="equip-cat-label" style="font-size:13px;color:var(--text2);margin-bottom:8px;font-weight:500">挖掘機具 清單</div>
+
+    <div id="equip-list-area">
+      <div class="equip-group" data-cat="excavate">
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">怪手 PC120</span><input class="item-qty" value="6"><span class="item-unit">hr</span></div>
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">怪手 PC60</span><input class="item-qty" value="5"><span class="item-unit">hr</span></div>
+        <div class="item-row"><div class="item-check" onclick="toggleCheck(this)"></div><span class="item-name">怪手 PC30</span><input class="item-qty" value="" placeholder="—"><span class="item-unit">hr</span></div>
+      </div>
+      <div class="equip-group" data-cat="crush" style="display:none">
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">破碎機 PC30</span><input class="item-qty" value="7"><span class="item-unit">hr</span></div>
+        <div class="item-row"><div class="item-check" onclick="toggleCheck(this)"></div><span class="item-name">破碎機 PC120</span><input class="item-qty" value="" placeholder="—"><span class="item-unit">hr</span></div>
+        <div class="item-row"><div class="item-check" onclick="toggleCheck(this)"></div><span class="item-name">破碎機 PC60</span><input class="item-qty" value="" placeholder="—"><span class="item-unit">hr</span></div>
+      </div>
+      <div class="equip-group" data-cat="crane" style="display:none">
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">全吊 25t</span><input class="item-qty" value="7"><span class="item-unit">hr</span></div>
+        <div class="item-row"><div class="item-check" onclick="toggleCheck(this)"></div><span class="item-name">全吊 40t</span><input class="item-qty" value="" placeholder="—"><span class="item-unit">hr</span></div>
+        <div class="item-row"><div class="item-check" onclick="toggleCheck(this)"></div><span class="item-name">全吊 60t</span><input class="item-qty" value="" placeholder="—"><span class="item-unit">hr</span></div>
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">吊卡</span><input class="item-qty" value="6"><span class="item-unit">hr</span></div>
+      </div>
+      <div class="equip-group" data-cat="transport" style="display:none">
+        <div class="item-row"><div class="item-check on" onclick="toggleCheck(this)"></div><span class="item-name">卡車 8.8t</span><input class="item-qty" value="6"><span class="item-unit">hr</span></div>
+        <div class="item-row"><div class="item-check" onclick="toggleCheck(this)"></div><span class="item-name">卡車 21t</span><input class="item-qty" value="" placeholder="—"><span class="item-unit">輛</span></div>
+        <div class="item-row"><div class="item-check" onclick="toggleCheck(this)"></div><span class="item-name">拖車 35t</span><input class="item-qty" value="" placeholder="—"><span class="item-unit">輛</span></div>
+        <div class="item-row"><div class="item-check" onclick="toggleCheck(this)"></div><span class="item-name">板車</span><input class="item-qty" value="" placeholder="—"><span class="item-unit">趟</span></div>
+      </div>
+    </div>
+
+    <div class="add-btn" id="equip-add-btn" onclick="addNewItem('equip')">＋ 新增機具</div>
+    <div id="equip-add-form" style="display:none;margin-top:8px">
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="text" id="equip-new-name" placeholder="機具名稱" style="flex:1;padding:10px 12px;border:1.5px solid var(--primary);border-radius:8px;font-size:14px">
+        <input type="text" id="equip-new-unit" placeholder="單位" value="hr" style="width:60px;padding:10px 8px;border:1.5px solid var(--primary);border-radius:8px;font-size:14px;text-align:center">
+        <button onclick="confirmAddItem('equip')" style="padding:10px 14px;background:var(--primary);color:var(--white);border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">確認</button>
+        <button onclick="cancelAddItem('equip')" style="padding:10px 12px;background:var(--gray-light);border:none;border-radius:8px;font-size:14px;cursor:pointer">取消</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-outline" onclick="goTo('screen-step3')" style="flex:1">← 上一步</button>
+      <button class="btn btn-primary" onclick="goTo('screen-step5')" style="flex:1">下一步 →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Step 5: 進度 ========== -->
+<div class="screen" id="screen-step5">
+  <div class="top-bar">
+    <div class="back" onclick="goTo('screen-step4')">←</div>
+    <h1>填寫日報</h1>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-dot done"></div>
+    <div class="progress-dot done"></div>
+    <div class="progress-dot done"></div>
+    <div class="progress-dot done"></div>
+    <div class="progress-dot active"></div>
+  </div>
+  <div class="step-label">步驟 5 / 5 — 施工紀錄與備註</div>
+  <div class="content fade-in">
+
+    <div class="card">
+      <div class="card-title">📝 今日施工紀錄</div>
+      <p id="log-list-summary" style="font-size:13px;color:var(--text2);margin-bottom:10px"></p>
+      <div id="log-list-container"></div>
+      <button class="btn btn-outline" onclick="openLogForm()" style="width:100%;margin-top:8px">＋ 新增施工紀錄</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📎 備註</div>
+      <textarea class="textarea" placeholder="特殊事項：停工原因、業主巡查、安全事件等..." style="min-height:70px"></textarea>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-outline" onclick="goTo('screen-step4')" style="flex:1">← 上一步</button>
+      <button class="btn btn-green" onclick="goTo('screen-preview')" style="flex:1">預覽 PDF →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 新增/編輯施工紀錄 ========== -->
+<div class="screen" id="screen-log-form">
+  <div class="top-bar">
+    <div class="back" onclick="goTo('screen-step5')">←</div>
+    <h1 id="log-form-title">新增施工紀錄</h1>
+  </div>
+  <div class="content fade-in">
+
+    <div class="sop-box" id="log-form-sop">
+      <div class="sop-title">💡 填寫範例</div>
+      <div class="sop-text">
+        <b>範例 1：</b>模板組立｜B2F A1-A5 軸｜上午 4hr<br>
+        「A1-A5 軸柱模組立完成，樑模進行中，進度 80%」<br><br>
+        <b>範例 2：</b>鋼筋綁紮｜3F 版筋｜全天 8hr<br>
+        「3F 頂版上層筋綁紮完成，下層筋進行中」<br><br>
+        <b>範例 3：</b>混凝土澆置｜B1F 底版｜下午 4hr<br>
+        「底版混凝土澆置 120 米，5000psi，坍度 18±2」
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📌 基本資訊</div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">施工項目</label>
+        <input type="text" id="log-title" placeholder="例：模板組立、鋼筋綁紮、混凝土澆置" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px">
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <div style="flex:1">
+          <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">負責人</label>
+          <input type="text" id="log-person" placeholder="例：王主任" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">施工單位</label>
+          <input type="text" id="log-unit" placeholder="例：大成工程行" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">⏰ 時段與工時</div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:6px">施工時段</label>
+        <div style="display:flex;gap:8px" id="log-period-tags">
+          <div class="tag" id="log-period-am" onclick="this.classList.toggle('on')" style="flex:1;text-align:center;padding:12px;font-size:15px">☀️ 上午</div>
+          <div class="tag" id="log-period-pm" onclick="this.classList.toggle('on')" style="flex:1;text-align:center;padding:12px;font-size:15px">🌙 下午</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1">
+          <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">今日工時</label>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" id="log-hours" value="8" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;text-align:center">
+            <span style="font-size:14px;color:var(--text2)">hr</span>
+          </div>
+        </div>
+        <div style="flex:1">
+          <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">累計工時</label>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" id="log-total-hours" value="0" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;text-align:center;background:var(--gray-light)" readonly>
+            <span style="font-size:14px;color:var(--text2)">hr</span>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">系統自動計算</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📍 施工內容</div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">施工位置</label>
+        <input type="text" id="log-location" placeholder="例：B2F A1-A5 軸、3F 東側" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">今日工作內容</label>
+        <textarea class="textarea" id="log-work-today" placeholder="描述施工進度與完成範圍&#10;例：A1-A5 軸柱模組立完成，進度 80%&#10;午後雷陣雨暫停 1 小時" style="min-height:80px"></textarea>
+      </div>
+      <div>
+        <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">明日工作內容</label>
+        <textarea class="textarea" id="log-work-tomorrow" placeholder="預計施工項目與注意事項&#10;例：續接 A5-A10 軸模板，預計下午澆置&#10;需備料：混凝土 5000psi 30 米" style="min-height:80px"></textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🏭 代工廠商</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div class="item-check" onclick="toggleCheck(this)" id="log-sub-check"></div>
+        <span style="font-size:14px">本項目有代工廠商</span>
+      </div>
+      <div id="log-sub-fields" style="display:none;margin-top:8px">
+        <input type="text" id="log-sub-name" placeholder="例：順發工程有限公司" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px">
+      </div>
+    </div>
+
+    <button class="btn btn-green" onclick="saveLogRecord()">儲存紀錄 ✓</button>
+  </div>
+</div>
+
+<!-- ========== 施工紀錄明細 ========== -->
+<div class="screen" id="screen-log-detail">
+  <div class="top-bar">
+    <div class="back" onclick="goTo('screen-step5')">←</div>
+    <h1>紀錄明細</h1>
+  </div>
+  <div class="content fade-in">
+    <div class="card" id="log-detail-content"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-outline" style="flex:1" onclick="editLogRecord()">✏️ 編輯</button>
+      <button class="btn btn-outline" style="flex:1;color:var(--red);border-color:var(--red)" onclick="deleteLogRecord()">🗑️ 刪除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 歷史日報 ========== -->
+<div class="screen" id="screen-history">
+  <div class="top-bar">
+    <div class="back" onclick="goTo('screen-home')">←</div>
+    <h1>歷史日報</h1>
+  </div>
+  <div class="content fade-in">
+    <div id="history-list-container"></div>
+  </div>
+  <div class="bottom-nav">
+    <div class="nav-item" onclick="goTo('screen-home')"><div class="nav-icon">🏠</div>首頁</div>
+    <div class="nav-item active"><div class="nav-icon">📁</div>歷史日報</div>
+    <div class="nav-item" onclick="goTo('screen-settings')"><div class="nav-icon">⚙️</div>設定</div>
+  </div>
+</div>
+
+<!-- ========== 歷史日報明細 ========== -->
+<div class="screen" id="screen-history-detail">
+  <div class="top-bar">
+    <div class="back" onclick="goTo('screen-history')">←</div>
+    <h1 id="history-detail-title">日報明細</h1>
+  </div>
+  <div class="content fade-in" id="history-detail-content"></div>
+</div>
+
+<!-- ========== PDF 預覽 ========== -->
+<div class="screen" id="screen-preview">
+  <div class="top-bar">
+    <div class="back" onclick="goTo('screen-step5')">←</div>
+    <h1>PDF 預覽</h1>
+  </div>
+  <div class="content fade-in">
+
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <div class="tag on" onclick="showPdfPage(1,this)" id="pdf-tab1" style="flex:1;text-align:center;padding:10px;font-size:14px">第一頁：日報摘要</div>
+      <div class="tag" onclick="showPdfPage(2,this)" id="pdf-tab2" style="flex:1;text-align:center;padding:10px;font-size:14px">第二頁：施工明細</div>
+    </div>
+
+    <div class="pdf-page" id="pdf-page1"></div>
+    <div class="pdf-page" id="pdf-page2" style="display:none"></div>
+
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-green" style="flex:1">📤 分享 PDF</button>
+      <button class="btn btn-primary" style="flex:1">📥 下載 PDF</button>
+    </div>
+    <p style="text-align:center;font-size:12px;color:var(--text3);margin-top:8px">PDF 產生後可直接透過 LINE 分享或列印存檔</p>
+  </div>
+</div>
+
+<script>
+// ===== 日期工具 =====
+function getTodayStr(){
+  var d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function getDayOfWeek(dateStr){
+  var days=['日','一','二','三','四','五','六'];
+  return days[new Date(dateStr).getDay()];
+}
+function daysBetween(d1,d2){
+  return Math.floor((new Date(d2)-new Date(d1))/(1000*60*60*24));
+}
+
+// ===== 預設資料 =====
+var DEFAULT_SETTINGS={
+  projectName:'拾光薈二期新建工程',
+  companyName:'群盛營造股份有限公司',
+  startDate:'2026-06-01',
+  endDate:'2028-06-01',
+  signers:{'董事長':'','總經理':'','工務協理':'','工務經理':'','工地主任':'','工程師':''},
+  crewTypes:['裝修工程','結構工程','基礎工程','機電工程','假設工程'],
+  materials:{
+    concrete:{label:'混凝土類',items:[
+      {name:'混凝土 5000psi',unit:'米'},{name:'混凝土 2500psi',unit:'米'},
+      {name:'混凝土 4000psi',unit:'米'},{name:'混凝土 3500psi',unit:'米'},
+      {name:'混凝土 3000psi',unit:'米'},{name:'混凝土 2000psi',unit:'米'}
+    ]},
+    masonry:{label:'砌築材料',items:[
+      {name:'海菜粉',unit:'包'},{name:'七厘石',unit:'包'},{name:'水泥',unit:'包'},{name:'紅磚',unit:'塊'}
+    ]},
+    sealant:{label:'填縫黏著',items:[
+      {name:'填縫劑（本細）',unit:'包'},{name:'填縫劑（本粗）',unit:'包'},{name:'黏著劑',unit:'包'}
+    ]},
+    aggregate:{label:'骨材類',items:[{name:'碎石',unit:'米'},{name:'砂',unit:'米'}]},
+    rebar:{label:'鋼筋類',items:[{name:'高拉鋼筋',unit:'噸'},{name:'中拉鋼筋',unit:'噸'}]},
+    other:{label:'其他',items:[]}
+  },
+  equipment:{
+    excavate:{label:'挖掘機具',items:[
+      {name:'怪手 PC120',unit:'hr'},{name:'怪手 PC60',unit:'hr'},{name:'怪手 PC30',unit:'hr'}
+    ]},
+    crush:{label:'破碎機具',items:[
+      {name:'破碎機 PC30',unit:'hr'},{name:'破碎機 PC120',unit:'hr'},{name:'破碎機 PC60',unit:'hr'}
+    ]},
+    crane:{label:'吊掛機具',items:[
+      {name:'全吊 25t',unit:'hr'},{name:'全吊 40t',unit:'hr'},{name:'全吊 60t',unit:'hr'},{name:'吊卡',unit:'hr'}
+    ]},
+    transport:{label:'運輸車輛',items:[
+      {name:'卡車 8.8t',unit:'hr'},{name:'卡車 21t',unit:'輛'},{name:'拖車 35t',unit:'輛'},{name:'板車',unit:'趟'}
+    ]}
+  }
+};
+
+// ===== localStorage 存取 =====
+var STORE_PREFIX='cdr-';
+function saveToStore(key,data){
+  try{localStorage.setItem(STORE_PREFIX+key,JSON.stringify(data))}
+  catch(e){console.warn('儲存失敗',e)}
+}
+function loadFromStore(key){
+  try{var s=localStorage.getItem(STORE_PREFIX+key);return s?JSON.parse(s):null}
+  catch(e){return null}
+}
+function saveSettings(data){saveToStore('settings',data)}
+function loadSettings(){return loadFromStore('settings')||JSON.parse(JSON.stringify(DEFAULT_SETTINGS))}
+function saveReport(dateStr,data){saveToStore('report-'+dateStr,data)}
+function loadReport(dateStr){return loadFromStore('report-'+dateStr)}
+// ===== 當前日報日期 =====
+var currentReportDate=getTodayStr();
+
+// ===== UI → 資料：收集當前填寫狀態 =====
+function collectReportData(){
+  var data={date:currentReportDate};
+  // 天氣
+  data.weather={am:'',pm:''};
+  var weatherCols=document.querySelectorAll('#screen-step1 .weather-col');
+  if(weatherCols[0]){var sel=weatherCols[0].querySelector('.weather-btn.selected span');if(sel)data.weather.am=sel.textContent}
+  if(weatherCols[1]){var sel=weatherCols[1].querySelector('.weather-btn.selected span');if(sel)data.weather.pm=sel.textContent}
+  // 施工天數（從開工日自動計算）
+  var settings=loadSettings();
+  data.constructionDays=daysBetween(settings.startDate,currentReportDate)+1;
+  // 人員
+  data.crew=[];
+  document.querySelectorAll('#screen-step2 .crew-row').forEach(function(row){
+    data.crew.push({
+      name:row.querySelector('.crew-label').textContent,
+      count:parseInt(row.querySelector('.crew-num').textContent)||0
+    });
+  });
+  // 材料
+  data.materials={};
+  document.querySelectorAll('.mat-group').forEach(function(g){
+    var cat=g.dataset.cat;data.materials[cat]=[];
+    g.querySelectorAll('.item-row').forEach(function(row){
+      data.materials[cat].push({
+        name:row.querySelector('.item-name').textContent,
+        unit:row.querySelector('.item-unit').textContent,
+        checked:row.querySelector('.item-check').classList.contains('on'),
+        qty:row.querySelector('.item-qty').value
+      });
+    });
+  });
+  // 機具
+  data.equipment={};
+  document.querySelectorAll('.equip-group').forEach(function(g){
+    var cat=g.dataset.cat;data.equipment[cat]=[];
+    g.querySelectorAll('.item-row').forEach(function(row){
+      data.equipment[cat].push({
+        name:row.querySelector('.item-name').textContent,
+        unit:row.querySelector('.item-unit').textContent,
+        checked:row.querySelector('.item-check').classList.contains('on'),
+        qty:row.querySelector('.item-qty').value
+      });
+    });
+  });
+  // 備註
+  var tas=document.querySelectorAll('#screen-step5 textarea');
+  data.progress={
+    today:'',
+    tomorrow:'',
+    notes:tas[0]?tas[0].value:''
+  };
+  data.savedAt=new Date().toISOString();
+  return data;
+}
+
+// ===== 資料 → UI：從資料填充畫面 =====
+function populateReportUI(data){
+  if(!data)return;
+  // 天氣
+  var weatherCols=document.querySelectorAll('#screen-step1 .weather-col');
+  var weatherMap={'晴':0,'陰':1,'雨':2};
+  if(data.weather){
+    if(data.weather.am&&weatherCols[0]){
+      weatherCols[0].querySelectorAll('.weather-btn').forEach(function(b,i){b.classList.toggle('selected',i===weatherMap[data.weather.am])});
+    }
+    if(data.weather.pm&&weatherCols[1]){
+      weatherCols[1].querySelectorAll('.weather-btn').forEach(function(b,i){b.classList.toggle('selected',i===weatherMap[data.weather.pm])});
+    }
+  }
+  // 施工天數
+  if(data.constructionDays!==undefined){
+    var cdEl=document.getElementById('step1-construction-days');
+    if(cdEl)cdEl.textContent=data.constructionDays+' 天';
+  }
+  // 人員
+  if(data.crew){
+    var crewContainer=document.querySelector('#screen-step2 .content');
+    // 清除現有 crew-row
+    document.querySelectorAll('#screen-step2 .crew-row').forEach(function(r){r.remove()});
+    // 重新產生
+    var addBtn=crewContainer.querySelector('.add-btn');
+    data.crew.forEach(function(c){
+      var row=document.createElement('div');row.className='crew-row';
+      row.innerHTML='<span class="crew-label">'+escHtml(c.name)+'</span>'+
+        '<div class="crew-ctrl">'+
+        '<div class="crew-btn" onclick="adjustCrew(this,-1)">−</div>'+
+        '<span class="crew-num">'+c.count+'</span>'+
+        '<div class="crew-btn" onclick="adjustCrew(this,1)">＋</div></div>';
+      crewContainer.insertBefore(row,addBtn);
+    });
+    updateCrewTotal();
+  }
+  // 材料
+  if(data.materials){
+    Object.keys(data.materials).forEach(function(cat){
+      var group=document.querySelector('.mat-group[data-cat="'+cat+'"]');
+      if(!group)return;
+      group.innerHTML='';
+      var items=data.materials[cat];
+      if(items.length===0&&cat==='other'){
+        group.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:14px">尚無自訂材料，請點擊下方新增</div>';
+        return;
+      }
+      items.forEach(function(item){
+        var row=document.createElement('div');row.className='item-row';
+        var check=document.createElement('div');
+        check.className='item-check'+(item.checked?' on':'');
+        check.onclick=function(){toggleCheck(this)};
+        var nameSpan=document.createElement('span');nameSpan.className='item-name';nameSpan.textContent=item.name;
+        var qtyInput=document.createElement('input');qtyInput.className='item-qty';
+        qtyInput.value=item.qty||'';qtyInput.placeholder='—';
+        var unitSpan=document.createElement('span');unitSpan.className='item-unit';unitSpan.textContent=item.unit;
+        row.appendChild(check);row.appendChild(nameSpan);row.appendChild(qtyInput);row.appendChild(unitSpan);
+        group.appendChild(row);
+      });
+    });
+  }
+  // 機具
+  if(data.equipment){
+    Object.keys(data.equipment).forEach(function(cat){
+      var group=document.querySelector('.equip-group[data-cat="'+cat+'"]');
+      if(!group)return;
+      group.innerHTML='';
+      data.equipment[cat].forEach(function(item){
+        var row=document.createElement('div');row.className='item-row';
+        var check=document.createElement('div');
+        check.className='item-check'+(item.checked?' on':'');
+        check.onclick=function(){toggleCheck(this)};
+        var nameSpan=document.createElement('span');nameSpan.className='item-name';nameSpan.textContent=item.name;
+        var qtyInput=document.createElement('input');qtyInput.className='item-qty';
+        qtyInput.value=item.qty||'';qtyInput.placeholder='—';
+        var unitSpan=document.createElement('span');unitSpan.className='item-unit';unitSpan.textContent=item.unit;
+        row.appendChild(check);row.appendChild(nameSpan);row.appendChild(qtyInput);row.appendChild(unitSpan);
+        group.appendChild(row);
+      });
+    });
+  }
+  // 備註
+  if(data.progress){
+    var tas=document.querySelectorAll('#screen-step5 textarea');
+    if(tas[0])tas[0].value=data.progress.notes||'';
+  }
+}
+
+
+// ===== 自動存檔 =====
+function autoSave(){
+  var data=collectReportData();
+  saveReport(currentReportDate,data);
+}
+
+// ===== 更新首頁資訊 =====
+function updateHomeInfo(){
+  var settings=loadSettings();
+  var today=currentReportDate;
+  var dow=getDayOfWeek(today);
+  var calDays=daysBetween(settings.startDate,today)+1;
+  var remainDays=daysBetween(today,settings.endDate);
+  // 專案資訊
+  var pn=document.getElementById('home-project-name');
+  if(pn)pn.textContent=settings.projectName;
+  var cn=document.getElementById('home-company-name');
+  if(cn)cn.textContent=settings.companyName;
+  var cd=document.getElementById('home-cal-days');
+  if(cd)cd.textContent=calDays;
+  var rm=document.getElementById('home-remain-days');
+  if(rm)rm.textContent=remainDays;
+  // 日報日期
+  var rd=document.getElementById('home-report-date');
+  if(rd)rd.textContent=today+'（'+dow+'）';
+}
+
+// ===== HTML 跳脫 =====
+function escHtml(s){
+  var d=document.createElement('div');d.textContent=s;return d.innerHTML;
+}
+
+// ===== 設定頁讀寫 =====
+function loadSettingsUI(){
+  var s=loadSettings();
+  var inputs=document.querySelectorAll('#screen-settings input[type="text"],#screen-settings input[type="date"]');
+  // 基本資訊（前4個input）
+  if(inputs[0])inputs[0].value=s.projectName;
+  if(inputs[1])inputs[1].value=s.companyName;
+  if(inputs[2])inputs[2].value=s.startDate;
+  if(inputs[3])inputs[3].value=s.endDate;
+  // 材料清單（唯讀）
+  var matList=document.getElementById('settings-mat-list');
+  if(matList&&s.materials){
+    matList.innerHTML='';
+    Object.keys(s.materials).forEach(function(cat){
+      var group=s.materials[cat];
+      if(!group.items||group.items.length===0)return;
+      var title=document.createElement('div');
+      title.style.cssText='font-size:13px;font-weight:600;color:var(--text2);margin:10px 0 4px';
+      title.textContent=group.label+'（'+group.items.length+' 項）';
+      matList.appendChild(title);
+      group.items.forEach(function(item){
+        var row=document.createElement('div');
+        row.style.cssText='display:flex;justify-content:space-between;padding:4px 8px;font-size:14px;color:var(--text1)';
+        row.innerHTML='<span>'+escHtml(item.name)+'</span><span style="color:var(--text3)">'+escHtml(item.unit)+'</span>';
+        matList.appendChild(row);
+      });
+    });
+  }
+  // 機具清單（唯讀）
+  var equipList=document.getElementById('settings-equip-list');
+  if(equipList&&s.equipment){
+    equipList.innerHTML='';
+    Object.keys(s.equipment).forEach(function(cat){
+      var group=s.equipment[cat];
+      if(!group.items||group.items.length===0)return;
+      var title=document.createElement('div');
+      title.style.cssText='font-size:13px;font-weight:600;color:var(--text2);margin:10px 0 4px';
+      title.textContent=group.label+'（'+group.items.length+' 項）';
+      equipList.appendChild(title);
+      group.items.forEach(function(item){
+        var row=document.createElement('div');
+        row.style.cssText='display:flex;justify-content:space-between;padding:4px 8px;font-size:14px;color:var(--text1)';
+        row.innerHTML='<span>'+escHtml(item.name)+'</span><span style="color:var(--text3)">'+escHtml(item.unit)+'</span>';
+        equipList.appendChild(row);
+      });
+    });
+  }
+  // 簽核人員（唯讀標籤）
+  var signerTags=document.getElementById('settings-signer-tags');
+  if(signerTags&&s.signers){
+    signerTags.innerHTML='';
+    Object.keys(s.signers).forEach(function(k){
+      var tag=document.createElement('span');
+      tag.className='tag on';
+      tag.textContent=k;
+      signerTags.appendChild(tag);
+    });
+  }
+}
+function saveSettingsFromUI(){
+  var s=loadSettings();
+  var inputs=document.querySelectorAll('#screen-settings input[type="text"],#screen-settings input[type="date"]');
+  if(inputs[0])s.projectName=inputs[0].value;
+  if(inputs[1])s.companyName=inputs[1].value;
+  if(inputs[2])s.startDate=inputs[2].value;
+  if(inputs[3])s.endDate=inputs[3].value;
+  saveSettings(s);
+}
+
+// ===== 設定頁新增工種 =====
+function showSettingsCrewAdd(){
+  document.getElementById('settings-crew-add-btn').style.display='none';
+  document.getElementById('settings-crew-add-form').style.display='block';
+  document.getElementById('settings-crew-new-name').value='';
+  document.getElementById('settings-crew-new-name').focus();
+}
+function cancelSettingsCrewAdd(){
+  document.getElementById('settings-crew-add-btn').style.display='flex';
+  document.getElementById('settings-crew-add-form').style.display='none';
+}
+function confirmSettingsCrewAdd(){
+  var name=document.getElementById('settings-crew-new-name').value.trim();
+  if(!name){alert('請輸入工種名稱');return}
+  // 新增 tag 到工種分類容器
+  var container=document.getElementById('settings-crew-add-btn').parentElement;
+  var tagsDiv=container.querySelector('div');
+  var tag=document.createElement('span');
+  tag.className='tag on';
+  tag.textContent=name;
+  tag.onclick=function(){this.classList.toggle('on')};
+  tagsDiv.appendChild(tag);
+  cancelSettingsCrewAdd();
+  // 同步到 settings 資料
+  var settings=loadSettings();
+  if(settings.crewTypes.indexOf(name)===-1){
+    settings.crewTypes.push(name);
+    saveSettings(settings);
+  }
+}
+
+// ===== 顯示帶入提示 =====
+
+// ===== 初始化 =====
+function initApp(){
+  // 檢查 localStorage 可用性
+  try{localStorage.setItem('cdr-test','1');localStorage.removeItem('cdr-test')}
+  catch(e){
+    alert('注意：您的瀏覽器不支援資料儲存（可能是隱私模式），填寫的資料將無法保存。');
+    return;
+  }
+  var settings=loadSettings();
+  // 載入設定頁
+  loadSettingsUI();
+  updateHomeInfo();
+  // 載入今天的日報
+  var todayData=loadReport(currentReportDate);
+  if(todayData){
+    populateReportUI(todayData);
+  }else{
+    // 全新：用預設值（不帶入昨天資料，確保每天重新確認）
+    var fresh={date:currentReportDate,weather:{am:'晴',pm:'陰'},constructionDays:daysBetween(settings.startDate,currentReportDate)+1,
+      crew:settings.crewTypes.map(function(t){return{name:t,count:0}}),
+      materials:{},equipment:{},
+      progress:{today:'',tomorrow:'',notes:''}};
+    // 從設定載入預設材料/機具（全部未勾選）
+    Object.keys(settings.materials).forEach(function(cat){
+      fresh.materials[cat]=settings.materials[cat].items.map(function(item){
+        return{name:item.name,unit:item.unit,checked:false,qty:''};
+      });
+    });
+    Object.keys(settings.equipment).forEach(function(cat){
+      fresh.equipment[cat]=settings.equipment[cat].items.map(function(item){
+        return{name:item.name,unit:item.unit,checked:false,qty:''};
+      });
+    });
+    populateReportUI(fresh);
+  }
+  updateWeeklyStats();
+  updateLogList();
+  updateHistoryList();
+}
+
+// ===== 導航（含自動存檔）=====
+var stepScreens=['screen-step1','screen-step2','screen-step3','screen-step4','screen-step5','screen-preview'];
+function goTo(id){
+  var currentScreen=document.querySelector('.screen.active');
+  var fromId=currentScreen?currentScreen.id:'';
+  // 離開日報步驟時自動存檔
+  if(stepScreens.indexOf(fromId)>=0){
+    autoSave();
+  }
+  // 離開設定頁時存設定
+  if(fromId==='screen-settings'){
+    saveSettingsFromUI();
+    updateHomeInfo();
+  }
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active')});
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+  if(id==='screen-home'){updateWeeklyStats();}
+  if(id==='screen-step5'){updateLogList();}
+  if(id==='screen-history'){updateHistoryList();}
+  if(id==='screen-preview'){renderPreview();}
+}
+
+// 頁面載入時初始化
+document.addEventListener('DOMContentLoaded',initApp);
+
+function selectWeather(el){
+  el.parentElement.querySelectorAll('.weather-btn').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function adjustCrew(btn,delta){
+  var ctrl=btn.closest('.crew-ctrl');
+  var numEl=ctrl.querySelector('.crew-num');
+  var v=parseInt(numEl.textContent)+delta;
+  if(v<0)v=0;
+  numEl.textContent=v;
+  updateCrewTotal();
+}
+
+function updateCrewTotal(){
+  var nums=document.querySelectorAll('#screen-step2 .crew-num');
+  var total=0;
+  nums.forEach(function(el){total+=parseInt(el.textContent)||0});
+  var totalEl=document.querySelector('#screen-step2 div[style*="font-size:28px"]');
+  if(totalEl)totalEl.textContent=total;
+}
+
+function showAddCrewForm(){
+  document.getElementById('crew-add-btn').style.display='none';
+  document.getElementById('crew-add-form').style.display='block';
+  document.getElementById('crew-new-name').value='';
+  document.getElementById('crew-new-name').focus();
+}
+function cancelAddCrew(){
+  document.getElementById('crew-add-btn').style.display='flex';
+  document.getElementById('crew-add-form').style.display='none';
+}
+function confirmAddCrew(){
+  var name=document.getElementById('crew-new-name').value.trim();
+  if(!name){alert('請輸入工種名稱');return}
+  var crewContainer=document.querySelector('#screen-step2 .content');
+  var addBtnEl=document.getElementById('crew-add-btn');
+  var row=document.createElement('div');
+  row.className='crew-row';
+  var label=document.createElement('span');
+  label.className='crew-label';
+  label.textContent=name;
+  var ctrl=document.createElement('div');
+  ctrl.className='crew-ctrl';
+  var minusBtn=document.createElement('div');
+  minusBtn.className='crew-btn';
+  minusBtn.textContent='−';
+  minusBtn.onclick=function(){adjustCrew(this,-1)};
+  var numSpan=document.createElement('span');
+  numSpan.className='crew-num';
+  numSpan.textContent='0';
+  var plusBtn=document.createElement('div');
+  plusBtn.className='crew-btn';
+  plusBtn.textContent='＋';
+  plusBtn.onclick=function(){adjustCrew(this,1)};
+  ctrl.appendChild(minusBtn);
+  ctrl.appendChild(numSpan);
+  ctrl.appendChild(plusBtn);
+  row.appendChild(label);
+  row.appendChild(ctrl);
+  crewContainer.insertBefore(row,addBtnEl);
+  cancelAddCrew();
+  updateCrewTotal();
+}
+
+function adjustNum(btn,idx,delta){
+  var numEl=btn.parentElement.querySelector('.crew-num-val');
+  var v=parseInt(numEl.textContent)+delta;
+  if(v<0)v=0;
+  numEl.textContent=v;
+}
+
+function toggleCheck(el){
+  el.classList.toggle('on');
+  if(el.id==='sub-check'){
+    document.getElementById('sub-fields').style.display=el.classList.contains('on')?'block':'none';
+  }
+  if(el.id==='log-sub-check'){
+    document.getElementById('log-sub-fields').style.display=el.classList.contains('on')?'block':'none';
+  }
+}
+
+var matCatNames={concrete:'混凝土類',masonry:'砌築材料',sealant:'填縫黏著',aggregate:'骨材類',rebar:'鋼筋類',other:'其他'};
+var currentMatCat='concrete';
+
+function switchMatCat(cat){
+  currentMatCat=cat;
+  document.getElementById('mat-cats').querySelectorAll('.cat-btn').forEach(function(b,i){
+    var cats=['concrete','masonry','sealant','aggregate','rebar','other'];
+    b.classList.toggle('selected',cats[i]===cat);
+  });
+  document.querySelectorAll('.mat-group').forEach(function(g){g.style.display=g.dataset.cat===cat?'block':'none'});
+  document.getElementById('mat-cat-label').textContent=matCatNames[cat]+' 材料清單';
+  cancelAddItem('mat');
+}
+
+var equipCatNames={excavate:'挖掘機具',crush:'破碎機具',crane:'吊掛機具',transport:'運輸車輛'};
+var currentEquipCat='excavate';
+
+function switchEquipCat(cat){
+  currentEquipCat=cat;
+  document.getElementById('equip-cats').querySelectorAll('.cat-btn').forEach(function(b,i){
+    var cats=['excavate','crush','crane','transport'];
+    b.classList.toggle('selected',cats[i]===cat);
+  });
+  document.querySelectorAll('.equip-group').forEach(function(g){g.style.display=g.dataset.cat===cat?'block':'none'});
+  document.getElementById('equip-cat-label').textContent=equipCatNames[cat]+' 清單';
+  cancelAddItem('equip');
+}
+
+function addNewItem(type){
+  document.getElementById(type+'-add-btn').style.display='none';
+  document.getElementById(type+'-add-form').style.display='block';
+  document.getElementById(type+'-new-name').focus();
+}
+
+function cancelAddItem(type){
+  document.getElementById(type+'-add-btn').style.display='flex';
+  document.getElementById(type+'-add-form').style.display='none';
+  document.getElementById(type+'-new-name').value='';
+}
+
+function confirmAddItem(type){
+  var name=document.getElementById(type+'-new-name').value.trim();
+  var unit=document.getElementById(type+'-new-unit').value.trim()||'個';
+  if(!name){alert('請輸入名稱');return}
+  var cat=type==='mat'?currentMatCat:currentEquipCat;
+  var groupClass=type==='mat'?'mat-group':'equip-group';
+  var target=document.querySelector('.'+groupClass+'[data-cat="'+cat+'"]');
+  var emptyMsg=target.querySelector('div[style*="text-align:center"]');
+  if(emptyMsg)emptyMsg.remove();
+  var row=document.createElement('div');
+  row.className='item-row';
+  var check=document.createElement('div');
+  check.className='item-check on';
+  check.onclick=function(){toggleCheck(this)};
+  var nameSpan=document.createElement('span');
+  nameSpan.className='item-name';
+  nameSpan.textContent=name;
+  var qtyInput=document.createElement('input');
+  qtyInput.className='item-qty';
+  qtyInput.value='';
+  qtyInput.placeholder='—';
+  var unitSpan=document.createElement('span');
+  unitSpan.className='item-unit';
+  unitSpan.textContent=unit;
+  row.appendChild(check);
+  row.appendChild(nameSpan);
+  row.appendChild(qtyInput);
+  row.appendChild(unitSpan);
+  target.appendChild(row);
+  cancelAddItem(type);
+}
+
+// ===== 施工紀錄 CRUD =====
+var currentEditLogId=null;
+
+function loadLogRecords(){
+  return loadFromStore('logs')||[];
+}
+function saveLogRecords(records){
+  saveToStore('logs',records);
+}
+
+function openLogForm(editId){
+  currentEditLogId=editId||null;
+  var titleEl=document.getElementById('log-form-title');
+  // 清空表單
+  document.getElementById('log-title').value='';
+  document.getElementById('log-person').value='';
+  document.getElementById('log-unit').value='';
+  document.getElementById('log-period-am').classList.remove('on');
+  document.getElementById('log-period-pm').classList.remove('on');
+  document.getElementById('log-hours').value='8';
+  document.getElementById('log-total-hours').value='0';
+  document.getElementById('log-location').value='';
+  document.getElementById('log-work-today').value='';
+  document.getElementById('log-work-tomorrow').value='';
+  document.getElementById('log-sub-check').classList.remove('on');
+  document.getElementById('log-sub-fields').style.display='none';
+  document.getElementById('log-sub-name').value='';
+
+  var sopBox=document.getElementById('log-form-sop');
+  if(editId){
+    titleEl.textContent='編輯施工紀錄';
+    if(sopBox)sopBox.style.display='none';
+    var records=loadLogRecords();
+    var rec=records.find(function(r){return r.id===editId});
+    if(rec){
+      document.getElementById('log-title').value=rec.title||'';
+      document.getElementById('log-person').value=rec.person||'';
+      document.getElementById('log-unit').value=rec.unit||'';
+      if(rec.am)document.getElementById('log-period-am').classList.add('on');
+      if(rec.pm)document.getElementById('log-period-pm').classList.add('on');
+      document.getElementById('log-hours').value=rec.hours||8;
+      document.getElementById('log-total-hours').value=rec.totalHours||0;
+      document.getElementById('log-location').value=rec.location||'';
+      document.getElementById('log-work-today').value=rec.workToday||'';
+      document.getElementById('log-work-tomorrow').value=rec.workTomorrow||'';
+      if(rec.subcontractor){
+        document.getElementById('log-sub-check').classList.add('on');
+        document.getElementById('log-sub-fields').style.display='block';
+        document.getElementById('log-sub-name').value=rec.subcontractorName||'';
+      }
+    }
+  }else{
+    titleEl.textContent='新增施工紀錄';
+    if(sopBox)sopBox.style.display='block';
+  }
+  goTo('screen-log-form');
+}
+
+function saveLogRecord(){
+  var title=document.getElementById('log-title').value.trim();
+  if(!title){alert('請輸入施工項目名稱');return}
+  var hours=parseFloat(document.getElementById('log-hours').value)||0;
+  var records=loadLogRecords();
+
+  // 計算累計工時
+  var prevTotal=0;
+  records.forEach(function(r){
+    if(r.title===title&&r.id!==currentEditLogId){
+      prevTotal+=(r.hours||0);
+    }
+  });
+  if(currentEditLogId){
+    // 編輯模式：找到記錄更新
+    var rec=records.find(function(r){return r.id===currentEditLogId});
+    if(rec){
+      // 原有的 totalHours 要減掉舊工時再加新工時
+      prevTotal+= hours;
+    }
+  }else{
+    prevTotal+=hours;
+  }
+
+  var logData={
+    id:currentEditLogId||('log-'+Date.now()+'-'+Math.random().toString(36).substr(2,5)),
+    date:currentReportDate,
+    title:title,
+    person:document.getElementById('log-person').value.trim(),
+    unit:document.getElementById('log-unit').value.trim(),
+    am:document.getElementById('log-period-am').classList.contains('on'),
+    pm:document.getElementById('log-period-pm').classList.contains('on'),
+    hours:hours,
+    totalHours:prevTotal,
+    location:document.getElementById('log-location').value.trim(),
+    workToday:document.getElementById('log-work-today').value.trim(),
+    workTomorrow:document.getElementById('log-work-tomorrow').value.trim(),
+    subcontractor:document.getElementById('log-sub-check').classList.contains('on'),
+    subcontractorName:document.getElementById('log-sub-name').value.trim(),
+    savedAt:new Date().toISOString()
+  };
+
+  if(currentEditLogId){
+    var idx=records.findIndex(function(r){return r.id===currentEditLogId});
+    if(idx>=0)records[idx]=logData;
+  }else{
+    records.push(logData);
+  }
+  saveLogRecords(records);
+  currentEditLogId=null;
+  goTo('screen-step5');
+}
+
+function updateLogList(){
+  var records=loadLogRecords();
+  var todayRecords=records.filter(function(r){return r.date===currentReportDate});
+  var summary=document.getElementById('log-list-summary');
+  var container=document.getElementById('log-list-container');
+  if(!summary||!container)return;
+  summary.textContent=currentReportDate+' 共 '+todayRecords.length+' 筆紀錄';
+  container.innerHTML='';
+  if(todayRecords.length===0){
+    container.innerHTML='<div style="text-align:center;padding:30px;color:var(--text3);font-size:14px">今天尚無施工紀錄</div>';
+    return;
+  }
+  todayRecords.forEach(function(rec){
+    var card=document.createElement('div');
+    card.className='log-card';
+    card.style.cursor='pointer';
+    card.onclick=function(){viewLogDetail(rec.id)};
+    // header
+    var header=document.createElement('div');header.className='log-header';
+    var titleSpan=document.createElement('span');titleSpan.className='log-title';titleSpan.textContent=rec.title;
+    var badges=document.createElement('div');badges.style.cssText='display:flex;gap:4px';
+    if(rec.am){var b=document.createElement('span');b.className='badge badge-am';b.textContent='上午';badges.appendChild(b)}
+    if(rec.pm){var b=document.createElement('span');b.className='badge badge-pm';b.textContent='下午';badges.appendChild(b)}
+    if(rec.subcontractor){var b=document.createElement('span');b.className='badge badge-sub';b.textContent='代工';badges.appendChild(b)}
+    header.appendChild(titleSpan);header.appendChild(badges);
+    card.appendChild(header);
+    // row1: 負責人 + 施工單位
+    var row1=document.createElement('div');row1.className='log-row';
+    row1.innerHTML='<div class="log-field"><div class="log-label">負責人</div><div class="log-value">'+escHtml(rec.person||'—')+'</div></div>'+
+      '<div class="log-field"><div class="log-label">施工單位</div><div class="log-value">'+escHtml(rec.unit||'—')+'</div></div>';
+    card.appendChild(row1);
+    // row2: 工時
+    var row2=document.createElement('div');row2.className='log-row';
+    row2.innerHTML='<div class="log-field"><div class="log-label">今日工時</div><div class="log-value">'+rec.hours+' hr</div></div>'+
+      '<div class="log-field"><div class="log-label">累計工時</div><div class="log-value">'+rec.totalHours+' hr</div></div>';
+    card.appendChild(row2);
+    // 代工標記
+    if(rec.subcontractor&&rec.subcontractorName){
+      var subDiv=document.createElement('div');
+      subDiv.style.cssText='margin-top:6px;padding:6px 10px;background:var(--red-light);border-radius:8px;font-size:12px;color:var(--red);font-weight:500';
+      subDiv.textContent='⚠️ 代工：'+rec.subcontractorName;
+      card.appendChild(subDiv);
+    }
+    container.appendChild(card);
+  });
+}
+
+var currentViewLogId=null;
+function viewLogDetail(id){
+  currentViewLogId=id;
+  var records=loadLogRecords();
+  var rec=records.find(function(r){return r.id===id});
+  if(!rec){goTo('screen-step5');return}
+  var c=document.getElementById('log-detail-content');
+  c.innerHTML='';
+  // header
+  var header=document.createElement('div');header.className='log-header';
+  var titleSpan=document.createElement('span');titleSpan.className='log-title';titleSpan.style.fontSize='18px';titleSpan.textContent=rec.title;
+  var badges=document.createElement('div');badges.style.cssText='display:flex;gap:4px';
+  if(rec.am){var b=document.createElement('span');b.className='badge badge-am';b.textContent='上午';badges.appendChild(b)}
+  if(rec.pm){var b=document.createElement('span');b.className='badge badge-pm';b.textContent='下午';badges.appendChild(b)}
+  header.appendChild(titleSpan);header.appendChild(badges);
+  c.appendChild(header);
+  // rows
+  function addRow(label1,val1,label2,val2){
+    var row=document.createElement('div');row.className='log-row';
+    row.innerHTML='<div class="log-field"><div class="log-label">'+label1+'</div><div class="log-value">'+escHtml(val1)+'</div></div>'+
+      '<div class="log-field"><div class="log-label">'+label2+'</div><div class="log-value">'+escHtml(val2)+'</div></div>';
+    c.appendChild(row);
+  }
+  function addField(label,val){
+    var f=document.createElement('div');f.className='log-field';f.style.marginTop='8px';
+    f.innerHTML='<div class="log-label">'+label+'</div><div class="log-value">'+escHtml(val||'—')+'</div>';
+    c.appendChild(f);
+  }
+  addRow('負責人',rec.person||'—','施工單位',rec.unit||'—');
+  addRow('今日工時',rec.hours+' hr','累計工時',rec.totalHours+' hr');
+  addField('施工位置',rec.location);
+  addField('今日工作內容',rec.workToday);
+  addField('明日工作內容',rec.workTomorrow);
+  if(rec.subcontractor){
+    var subDiv=document.createElement('div');
+    subDiv.style.cssText='margin-top:10px;padding:8px 12px;background:var(--red-light);border-radius:8px;font-size:13px;color:var(--red);font-weight:500';
+    subDiv.textContent='🏭 代工廠商：'+rec.subcontractorName;
+    c.appendChild(subDiv);
+  }
+  goTo('screen-log-detail');
+}
+
+function editLogRecord(){
+  if(currentViewLogId)openLogForm(currentViewLogId);
+}
+
+function deleteLogRecord(){
+  if(!currentViewLogId)return;
+  if(!confirm('確定要刪除這筆施工紀錄嗎？'))return;
+  var records=loadLogRecords();
+  records=records.filter(function(r){return r.id!==currentViewLogId});
+  saveLogRecords(records);
+  currentViewLogId=null;
+  goTo('screen-step5');
+}
+
+// ===== 歷史日報 =====
+function updateHistoryList(){
+  var container=document.getElementById('history-list-container');
+  if(!container)return;
+  container.innerHTML='';
+  // 掃描最近 30 天的 localStorage
+  var today=new Date(currentReportDate);
+  var found=0;
+  for(var i=1;i<=30;i++){
+    var d=new Date(today);d.setDate(today.getDate()-i);
+    var ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    var rpt=loadReport(ds);
+    if(!rpt)continue;
+    found++;
+    var dow=getDayOfWeek(ds);
+    // 計算摘要
+    var crewTotal=0;
+    if(rpt.crew)rpt.crew.forEach(function(c){crewTotal+=(c.count||0)});
+    var matCount=0;
+    if(rpt.materials)Object.keys(rpt.materials).forEach(function(cat){
+      rpt.materials[cat].forEach(function(item){if(item.checked)matCount++});
+    });
+    var equipCount=0;
+    if(rpt.equipment)Object.keys(rpt.equipment).forEach(function(cat){
+      rpt.equipment[cat].forEach(function(item){if(item.checked)equipCount++});
+    });
+    var card=document.createElement('div');
+    card.className='card';
+    card.style.cursor='pointer';
+    (function(dateStr){
+      card.onclick=function(){viewHistoryDetail(dateStr)};
+    })(ds);
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;justify-content:space-between;align-items:center';
+    var left=document.createElement('div');
+    var dateDiv=document.createElement('div');
+    dateDiv.style.fontWeight='600';
+    dateDiv.style.fontSize='15px';
+    dateDiv.textContent=ds+'（'+dow+'）';
+    var summaryDiv=document.createElement('div');
+    summaryDiv.style.cssText='font-size:13px;color:var(--text2);margin-top:2px';
+    summaryDiv.textContent='人員 '+crewTotal+' 人｜材料 '+matCount+' 項｜機具 '+equipCount+' 台';
+    left.appendChild(dateDiv);
+    left.appendChild(summaryDiv);
+    var badge=document.createElement('span');
+    badge.style.cssText='color:var(--green);font-size:13px;font-weight:600';
+    badge.textContent='已完成 ✓';
+    row.appendChild(left);
+    row.appendChild(badge);
+    card.appendChild(row);
+    container.appendChild(card);
+  }
+  if(found===0){
+    container.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:15px">尚無歷史日報紀錄<br><span style="font-size:13px">填寫日報後，紀錄會出現在這裡</span></div>';
+  }
+}
+
+function viewHistoryDetail(dateStr){
+  var rpt=loadReport(dateStr);
+  if(!rpt){goTo('screen-history');return}
+  var dow=getDayOfWeek(dateStr);
+  var titleEl=document.getElementById('history-detail-title');
+  if(titleEl)titleEl.textContent=dateStr+'（'+dow+'）';
+  var content=document.getElementById('history-detail-content');
+  content.innerHTML='';
+
+  // 天氣
+  if(rpt.weather){
+    var weatherCard=document.createElement('div');weatherCard.className='card';
+    weatherCard.innerHTML='<div class="card-title">🌤️ 天氣</div>'+
+      '<div style="display:flex;gap:20px;font-size:15px">'+
+      '<span>上午：<b>'+(rpt.weather.am||'—')+'</b></span>'+
+      '<span>下午：<b>'+(rpt.weather.pm||'—')+'</b></span></div>';
+    content.appendChild(weatherCard);
+  }
+
+  // 施工天數
+  if(rpt.constructionDays!==undefined){
+    var daysCard=document.createElement('div');daysCard.className='card';
+    daysCard.innerHTML='<div class="card-title">📅 施工天數</div>'+
+      '<div style="font-size:22px;font-weight:700;color:var(--primary)">'+rpt.constructionDays+' 天</div>';
+    content.appendChild(daysCard);
+  }
+
+  // 人員
+  if(rpt.crew&&rpt.crew.length>0){
+    var crewCard=document.createElement('div');crewCard.className='card';
+    var crewTitle=document.createElement('div');crewTitle.className='card-title';crewTitle.textContent='👷 今日人員';
+    crewCard.appendChild(crewTitle);
+    var total=0;
+    rpt.crew.forEach(function(c){
+      total+=(c.count||0);
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)';
+      row.innerHTML='<span style="font-size:15px">'+escHtml(c.name)+'</span><span style="font-size:15px;font-weight:600">'+c.count+' 人</span>';
+      crewCard.appendChild(row);
+    });
+    var totalDiv=document.createElement('div');
+    totalDiv.style.cssText='display:flex;justify-content:space-between;padding:8px 0;font-weight:700;font-size:16px;color:var(--primary)';
+    totalDiv.innerHTML='<span>合計</span><span>'+total+' 人</span>';
+    crewCard.appendChild(totalDiv);
+    content.appendChild(crewCard);
+  }
+
+  // 材料
+  if(rpt.materials){
+    var hasChecked=false;
+    Object.keys(rpt.materials).forEach(function(cat){
+      rpt.materials[cat].forEach(function(item){if(item.checked)hasChecked=true});
+    });
+    if(hasChecked){
+      var matCard=document.createElement('div');matCard.className='card';
+      matCard.innerHTML='<div class="card-title">📦 營建材料</div>';
+      Object.keys(rpt.materials).forEach(function(cat){
+        rpt.materials[cat].forEach(function(item){
+          if(!item.checked)return;
+          var row=document.createElement('div');
+          row.style.cssText='display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:14px';
+          row.innerHTML='<span>'+escHtml(item.name)+'</span><span style="font-weight:500">'+(item.qty||'—')+' '+escHtml(item.unit)+'</span>';
+          matCard.appendChild(row);
+        });
+      });
+      content.appendChild(matCard);
+    }
+  }
+
+  // 機具
+  if(rpt.equipment){
+    var hasEquip=false;
+    Object.keys(rpt.equipment).forEach(function(cat){
+      rpt.equipment[cat].forEach(function(item){if(item.checked)hasEquip=true});
+    });
+    if(hasEquip){
+      var equipCard=document.createElement('div');equipCard.className='card';
+      equipCard.innerHTML='<div class="card-title">🚜 機具設備</div>';
+      Object.keys(rpt.equipment).forEach(function(cat){
+        rpt.equipment[cat].forEach(function(item){
+          if(!item.checked)return;
+          var row=document.createElement('div');
+          row.style.cssText='display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:14px';
+          row.innerHTML='<span>'+escHtml(item.name)+'</span><span style="font-weight:500">'+(item.qty||'—')+' '+escHtml(item.unit)+'</span>';
+          equipCard.appendChild(row);
+        });
+      });
+      content.appendChild(equipCard);
+    }
+  }
+
+  // 進度
+  if(rpt.progress){
+    var progCard=document.createElement('div');progCard.className='card';
+    progCard.innerHTML='<div class="card-title">📎 備註</div>';
+    if(rpt.progress.notes){
+      progCard.innerHTML+='<div style="font-size:14px;background:var(--gray-light);border-radius:8px;padding:10px 12px;line-height:1.6">'+escHtml(rpt.progress.notes)+'</div>';
+    }
+    content.appendChild(progCard);
+  }
+
+  goTo('screen-history-detail');
+}
+
+function updateWeeklyStats(){
+  // 找到本週一的日期
+  var today=new Date(currentReportDate);
+  var dayOfWeek=today.getDay();
+  var mondayOffset=dayOfWeek===0?6:dayOfWeek-1;
+  var monday=new Date(today);
+  monday.setDate(today.getDate()-mondayOffset);
+  var reportCount=0;var totalCrew=0;
+  for(var i=0;i<7;i++){
+    var d=new Date(monday);d.setDate(monday.getDate()+i);
+    var ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    var rpt=loadReport(ds);
+    if(rpt){
+      reportCount++;
+      if(rpt.crew){rpt.crew.forEach(function(c){totalCrew+=(c.count||0)})}
+    }
+  }
+  var el1=document.getElementById('stat-reports');
+  var el2=document.getElementById('stat-crew');
+  if(el1)el1.textContent=reportCount;
+  if(el2)el2.textContent=totalCrew;
+  // 施工紀錄統計
+  var allLogs=loadLogRecords();
+  var weekLogs=allLogs.filter(function(r){
+    var rd=new Date(r.date);
+    return rd>=monday&&rd<=new Date(monday.getTime()+6*86400000);
+  });
+  var el3=document.getElementById('stat-logs');
+  var el4=document.getElementById('stat-hours');
+  if(el3)el3.textContent=weekLogs.length;
+  var totalHrs=0;weekLogs.forEach(function(r){totalHrs+=(r.hours||0)});
+  if(el4)el4.textContent=totalHrs;
+}
+
+function renderPreview(){
+  var data=collectReportData();
+  var settings=loadSettings();
+  var dow=getDayOfWeek(currentReportDate);
+  var calDays=daysBetween(settings.startDate,currentReportDate)+1;
+  var remainDays=daysBetween(currentReportDate,settings.endDate);
+  var logs=loadLogRecords().filter(function(r){return r.date===currentReportDate});
+
+  // ===== 第一頁：日報摘要 =====
+  var h='<div style="text-align:center;font-size:16px;font-weight:700;margin-bottom:14px;color:#333">營建工程管理日報表</div>';
+  // 基本資訊
+  h+='<table class="pdf-table" style="margin-bottom:12px">';
+  h+='<tr><td style="width:25%;font-weight:600;background:#f5f5f5">專案名稱</td><td>'+escHtml(settings.projectName)+'</td><td style="width:20%;font-weight:600;background:#f5f5f5">公司名稱</td><td>'+escHtml(settings.companyName)+'</td></tr>';
+  h+='<tr><td style="font-weight:600;background:#f5f5f5">天氣</td><td>上午：'+(data.weather.am||'—')+'</td><td colspan="2">下午：'+(data.weather.pm||'—')+'</td></tr>';
+  h+='<tr><td style="font-weight:600;background:#f5f5f5">日期類別</td><td>週'+dow+'</td><td style="font-weight:600;background:#f5f5f5">日報日期</td><td>'+currentReportDate+'</td></tr>';
+  h+='<tr><td style="font-weight:600;background:#f5f5f5">開工日期</td><td>'+settings.startDate+'</td><td style="font-weight:600;background:#f5f5f5">竣工日期</td><td>'+settings.endDate+'</td></tr>';
+  h+='<tr><td style="font-weight:600;background:#f5f5f5">施工天數</td><td>'+calDays+' 天</td><td style="font-weight:600;background:#f5f5f5">剩餘天數</td><td>'+remainDays+' 天</td></tr>';
+  h+='</table>';
+
+  // 備註
+  h+='<table class="pdf-table" style="margin-bottom:12px">';
+  h+='<tr><td style="font-weight:600;background:#f5f5f5;width:25%">備註</td><td>'+(data.progress.notes?escHtml(data.progress.notes):'<span style="color:#999">（無）</span>')+'</td></tr>';
+  h+='</table>';
+
+  // 三欄：人員 / 材料 / 機具
+  h+='<div style="display:flex;gap:8px;font-size:11px;margin-bottom:12px">';
+
+  // 人員
+  h+='<div style="flex:1"><div style="font-weight:600;margin-bottom:6px;font-size:12px">今日入場人員</div>';
+  var crewTotal=0;
+  var crewColors=['#2563EB','#DC2626','#059669','#D97706','#7C3AED','#EC4899','#06B6D4','#84CC16'];
+  if(data.crew&&data.crew.length>0){
+    data.crew.forEach(function(c){crewTotal+=(c.count||0)});
+    if(crewTotal>0){
+      // 圓餅圖
+      var pct=0;var gradParts=[];
+      data.crew.forEach(function(c,i){
+        if(c.count<=0)return;
+        var p=c.count/crewTotal*100;
+        var color=crewColors[i%crewColors.length];
+        gradParts.push(color+' '+pct.toFixed(1)+'% '+(pct+p).toFixed(1)+'%');
+        pct+=p;
+      });
+      h+='<div style="background:#f5f5f5;border-radius:8px;padding:10px;text-align:center">';
+      h+='<div style="width:80px;height:80px;border-radius:50%;background:conic-gradient('+gradParts.join(',')+');margin:0 auto 8px"></div>';
+      h+='<div style="font-size:10px;line-height:1.8">';
+      data.crew.forEach(function(c,i){
+        if(c.count<=0)return;
+        var color=crewColors[i%crewColors.length];
+        h+='<span style="color:'+color+'">■</span> '+escHtml(c.name)+' '+c.count+'人/'+Math.round(c.count/crewTotal*100)+'%<br>';
+      });
+      h+='</div></div>';
+    }else{
+      h+='<div style="color:#999;font-size:12px;padding:10px">尚未填寫人員</div>';
+    }
+  }
+  h+='</div>';
+
+  // 材料
+  h+='<div style="flex:1"><div style="font-weight:600;margin-bottom:6px;font-size:12px">營建材料</div>';
+  var hasMat=false;
+  if(data.materials){
+    h+='<table class="pdf-table" style="font-size:10px">';
+    Object.keys(data.materials).forEach(function(cat){
+      data.materials[cat].forEach(function(item){
+        if(!item.checked)return;
+        hasMat=true;
+        h+='<tr><td>'+escHtml(item.name)+'</td><td>'+(item.qty||'—')+escHtml(item.unit)+'</td></tr>';
+      });
+    });
+    h+='</table>';
+  }
+  if(!hasMat)h+='<div style="color:#999;font-size:12px;padding:10px">尚未勾選材料</div>';
+  h+='</div>';
+
+  // 機具
+  h+='<div style="flex:1"><div style="font-weight:600;margin-bottom:6px;font-size:12px">機具設備</div>';
+  var hasEquip=false;
+  if(data.equipment){
+    h+='<table class="pdf-table" style="font-size:10px">';
+    Object.keys(data.equipment).forEach(function(cat){
+      data.equipment[cat].forEach(function(item){
+        if(!item.checked)return;
+        hasEquip=true;
+        h+='<tr><td>'+escHtml(item.name)+'</td><td>'+(item.qty||'—')+escHtml(item.unit)+'</td></tr>';
+      });
+    });
+    h+='</table>';
+  }
+  if(!hasEquip)h+='<div style="color:#999;font-size:12px;padding:10px">尚未勾選機具</div>';
+  h+='</div></div>';
+
+  // 簽核欄
+  var signerKeys=Object.keys(settings.signers);
+  var sw=Math.floor(100/signerKeys.length);
+  h+='<table class="pdf-table" style="font-size:11px"><tr>';
+  signerKeys.forEach(function(k){
+    h+='<td style="width:'+sw+'%;text-align:center;font-weight:600;background:#f5f5f5">'+escHtml(k)+'</td>';
+  });
+  h+='</tr><tr>';
+  signerKeys.forEach(function(){h+='<td style="height:30px"></td>'});
+  h+='</tr></table>';
+
+  document.getElementById('pdf-page1').innerHTML=h;
+
+  // ===== 第二頁：施工紀錄 =====
+  var h2='<div style="text-align:center;font-size:14px;font-weight:700;margin-bottom:10px;color:#333">施工紀錄明細表</div>';
+  h2+='<div style="text-align:center;font-size:11px;color:#666;margin-bottom:12px">'+currentReportDate+'（'+dow+'）｜'+escHtml(settings.projectName)+'</div>';
+
+  if(logs.length>0){
+    h2+='<table class="pdf-table" style="font-size:10px">';
+    h2+='<tr style="background:#f5f5f5"><th>施工項目</th><th>負責人</th><th>施工單位</th><th>時段</th><th>工時</th><th>累計</th><th>代工</th></tr>';
+    logs.forEach(function(rec){
+      var period=[];
+      if(rec.am)period.push('上午');
+      if(rec.pm)period.push('下午');
+      var periodStr=period.length===2?'全天':(period[0]||'—');
+      h2+='<tr>';
+      h2+='<td>'+escHtml(rec.title||'')+'</td>';
+      h2+='<td>'+escHtml(rec.person||'')+'</td>';
+      h2+='<td>'+escHtml(rec.unit||'')+'</td>';
+      h2+='<td>'+periodStr+'</td>';
+      h2+='<td>'+(rec.hours||0)+'hr</td>';
+      h2+='<td>'+(rec.totalHours||0)+'hr</td>';
+      h2+='<td>'+(rec.subcontractor?'<span style="color:red;font-weight:600">'+escHtml(rec.subcontractorName||'')+'</span>':'—')+'</td>';
+      h2+='</tr>';
+    });
+    h2+='</table>';
+
+    h2+='<div style="margin-top:12px;font-size:11px;font-weight:600">各項施工內容明細</div>';
+    h2+='<table class="pdf-table" style="font-size:10px;margin-top:6px">';
+    h2+='<tr style="background:#f5f5f5"><th>施工項目</th><th>施工位置</th><th>今日工作內容</th><th>明日工作內容</th></tr>';
+    logs.forEach(function(rec){
+      h2+='<tr>';
+      h2+='<td>'+escHtml(rec.title||'')+'</td>';
+      h2+='<td>'+escHtml(rec.location||'')+'</td>';
+      h2+='<td>'+escHtml(rec.workToday||'')+'</td>';
+      h2+='<td>'+escHtml(rec.workTomorrow||'')+'</td>';
+      h2+='</tr>';
+    });
+    h2+='</table>';
+  }else{
+    h2+='<div style="text-align:center;padding:30px;color:#999;font-size:13px">今日尚無施工紀錄</div>';
+  }
+
+  document.getElementById('pdf-page2').innerHTML=h2;
+}
+
+function showPdfPage(n,el){
+  document.getElementById('pdf-page1').style.display=n===1?'block':'none';
+  document.getElementById('pdf-page2').style.display=n===2?'block':'none';
+  document.getElementById('pdf-tab1').classList.toggle('on',n===1);
+  document.getElementById('pdf-tab2').classList.toggle('on',n===2);
+}
+</script>
+
+</body>
+</html>
