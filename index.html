@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-title" content="營建日報">
 <meta name="theme-color" content="#2563EB">
 <link rel="manifest" href="manifest.json">
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>營建日報系統</title>
 <style>
@@ -83,10 +85,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .photo-area{border:2px dashed var(--border);border-radius:var(--radius);padding:24px;text-align:center;margin-top:10px;cursor:pointer}
 .photo-area .photo-icon{font-size:32px;color:var(--text3);margin-bottom:6px}
 .photo-area p{font-size:13px;color:var(--text3)}
-.pdf-page{background:var(--white);border:1px solid var(--border);border-radius:4px;padding:20px 16px;margin-bottom:16px;box-shadow:var(--shadow)}
-.pdf-table{width:100%;border-collapse:collapse;font-size:12px}
-.pdf-table th,.pdf-table td{border:1px solid #999;padding:5px 8px;text-align:left}
-.pdf-table th{background:#f0f0f0;font-weight:600}
+.pdf-page{background:#fff;margin-bottom:16px;aspect-ratio:210/297;box-sizing:border-box;overflow:hidden;font-size:11px;color:#222;line-height:1.35;padding:0}
+.pdf-page *{box-sizing:border-box}
+.pdf-title{background:#1a1a1a;color:#fff;text-align:center;padding:8px 14px;font-size:15px;font-weight:700;letter-spacing:5px}
+.pdf-company{text-align:center;padding:5px 14px;font-size:12px;font-weight:600;border-bottom:2px solid #333;background:#f0f0f0}
+.pdf-body{padding:8px 14px}
+.pdf-table{width:100%;border-collapse:collapse;font-size:10px}
+.pdf-table th,.pdf-table td{border:1px solid #333;padding:3px 6px;text-align:left}
+.pdf-table th{background:#f0f0f0;font-weight:600;font-size:9.5px;color:#444}
+.pdf-section{font-weight:700;text-align:center;background:#e8e8e8;padding:4px;border:1px solid #333;font-size:10px}
+.pdf-page-header{text-align:center;font-size:11px;font-weight:700;color:#333;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #999}
+.pdf-footer{font-size:8px;color:#999;text-align:center;margin-top:6px;letter-spacing:1px}
 .info-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
 .info-row:last-child{border-bottom:none}
 .info-label{font-size:13px;color:var(--text2)}
@@ -177,11 +186,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   <div class="content fade-in">
     <div class="card">
       <div class="card-title">📌 基本資訊</div>
-      <div style="margin-bottom:10px">
+      <div style="margin-bottom:6px">
         <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">專案名稱</label>
         <input type="text" value="高鐵綻" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:15px">
       </div>
-      <div style="margin-bottom:10px">
+      <div style="margin-bottom:6px">
         <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">公司名稱</label>
         <input type="text" value="瑋瓏營造股份有限公司" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:15px">
       </div>
@@ -574,7 +583,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 
     <div class="card">
       <div class="card-title">📌 基本資訊</div>
-      <div style="margin-bottom:10px">
+      <div style="margin-bottom:6px">
         <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">施工項目</label>
         <input type="text" id="log-title" placeholder="例：模板組立、鋼筋綁紮、混凝土澆置" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px">
       </div>
@@ -592,7 +601,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 
     <div class="card">
       <div class="card-title">⏰ 時段與工時</div>
-      <div style="margin-bottom:10px">
+      <div style="margin-bottom:6px">
         <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:6px">施工時段</label>
         <div style="display:flex;gap:8px" id="log-period-tags">
           <div class="tag" id="log-period-am" onclick="this.classList.toggle('on')" style="flex:1;text-align:center;padding:12px;font-size:15px">☀️ 上午</div>
@@ -620,11 +629,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 
     <div class="card">
       <div class="card-title">📍 施工內容</div>
-      <div style="margin-bottom:10px">
+      <div style="margin-bottom:6px">
         <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">施工位置</label>
         <input type="text" id="log-location" placeholder="例：B2F A1-A5 軸、3F 東側" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px">
       </div>
-      <div style="margin-bottom:10px">
+      <div style="margin-bottom:6px">
         <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px">今日工作內容</label>
         <textarea class="textarea" id="log-work-today" placeholder="描述施工進度與完成範圍&#10;例：A1-A5 軸柱模組立完成，進度 80%&#10;午後雷陣雨暫停 1 小時" style="min-height:80px"></textarea>
       </div>
@@ -697,17 +706,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   </div>
   <div class="content fade-in">
 
-    <div style="display:flex;gap:8px;margin-bottom:14px">
-      <div class="tag on" onclick="showPdfPage(1,this)" id="pdf-tab1" style="flex:1;text-align:center;padding:10px;font-size:14px">第一頁：日報摘要</div>
-      <div class="tag" onclick="showPdfPage(2,this)" id="pdf-tab2" style="flex:1;text-align:center;padding:10px;font-size:14px">第二頁：施工明細</div>
-    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="pdf-tabs"></div>
 
-    <div class="pdf-page" id="pdf-page1"></div>
-    <div class="pdf-page" id="pdf-page2" style="display:none"></div>
+    <div id="pdf-pages-container"></div>
 
     <div style="display:flex;gap:8px;margin-top:8px">
-      <button class="btn btn-green" style="flex:1">📤 分享 PDF</button>
-      <button class="btn btn-primary" style="flex:1">📥 下載 PDF</button>
+      <button class="btn btn-green" style="flex:1" onclick="sharePDF()" id="btn-share-pdf">📤 分享 PDF</button>
+      <button class="btn btn-primary" style="flex:1" onclick="downloadPDF()" id="btn-download-pdf">📥 下載 PDF</button>
     </div>
     <p style="text-align:center;font-size:12px;color:var(--text3);margin-top:8px">PDF 產生後可直接透過 LINE 分享或列印存檔</p>
   </div>
@@ -1701,110 +1706,120 @@ function renderPreview(){
   var remainDays=daysBetween(currentReportDate,settings.endDate);
   var logs=loadLogRecords().filter(function(r){return r.date===currentReportDate});
 
+  var pages=[];
+
   // ===== 第一頁：日報摘要 =====
-  var h='<div style="text-align:center;font-size:16px;font-weight:700;margin-bottom:14px;color:#333">營建工程管理日報表</div>';
+  var h='';
+  // 標題
+  h+='<div class="pdf-title">營 建 工 程 管 理 日 報 表</div>';
+  h+='<div class="pdf-company">'+escHtml(settings.companyName)+'</div>';
+
+  // 頁面內容區
+  h+='<div class="pdf-body">';
+
   // 基本資訊
-  h+='<table class="pdf-table" style="margin-bottom:12px">';
-  h+='<tr><td style="width:25%;font-weight:600;background:#f5f5f5">專案名稱</td><td>'+escHtml(settings.projectName)+'</td><td style="width:20%;font-weight:600;background:#f5f5f5">公司名稱</td><td>'+escHtml(settings.companyName)+'</td></tr>';
-  h+='<tr><td style="font-weight:600;background:#f5f5f5">天氣</td><td>上午：'+(data.weather.am||'—')+'</td><td colspan="2">下午：'+(data.weather.pm||'—')+'</td></tr>';
-  h+='<tr><td style="font-weight:600;background:#f5f5f5">日期類別</td><td>週'+dow+'</td><td style="font-weight:600;background:#f5f5f5">日報日期</td><td>'+currentReportDate+'</td></tr>';
-  h+='<tr><td style="font-weight:600;background:#f5f5f5">開工日期</td><td>'+settings.startDate+'</td><td style="font-weight:600;background:#f5f5f5">竣工日期</td><td>'+settings.endDate+'</td></tr>';
-  h+='<tr><td style="font-weight:600;background:#f5f5f5">施工天數</td><td>'+calDays+' 天</td><td style="font-weight:600;background:#f5f5f5">剩餘天數</td><td>'+remainDays+' 天</td></tr>';
+  h+='<table class="pdf-table" style="margin-bottom:6px">';
+  h+='<tr><td style="width:18%;font-weight:600;background:#f0f0f0">專案名稱</td><td style="width:32%">'+escHtml(settings.projectName)+'</td>';
+  h+='<td style="width:18%;font-weight:600;background:#f0f0f0">日報日期</td><td style="width:32%">'+currentReportDate+'</td></tr>';
+  h+='<tr><td style="font-weight:600;background:#f0f0f0">天　　氣</td><td>上午：'+(data.weather.am||'—')+' ／ 下午：'+(data.weather.pm||'—')+'</td>';
+  h+='<td style="font-weight:600;background:#f0f0f0">日期類別</td><td>週'+dow+'</td></tr>';
+  h+='<tr><td style="font-weight:600;background:#f0f0f0">開工日期</td><td>'+settings.startDate+'</td>';
+  h+='<td style="font-weight:600;background:#f0f0f0">竣工日期</td><td>'+settings.endDate+'</td></tr>';
+  h+='<tr><td style="font-weight:600;background:#f0f0f0">施工天數</td><td>'+calDays+' 天</td>';
+  h+='<td style="font-weight:600;background:#f0f0f0">剩餘天數</td><td>'+remainDays+' 天</td></tr>';
+  h+='</table>';
+
+  // 人員：橫向表格
+  var crewTotal=0;
+  if(data.crew)data.crew.forEach(function(c){crewTotal+=(c.count||0)});
+  h+='<table class="pdf-table" style="margin-bottom:6px">';
+  h+='<tr><td colspan="'+(data.crew.length+1)+'" class="pdf-section">今日入場人員</td></tr>';
+  h+='<tr style="background:#f0f0f0">';
+  data.crew.forEach(function(c){
+    h+='<th style="text-align:center">'+escHtml(c.name)+'</th>';
+  });
+  h+='<th style="text-align:center;background:#ddd">合計</th></tr>';
+  h+='<tr>';
+  data.crew.forEach(function(c){
+    h+='<td style="text-align:center;font-size:11px">'+(c.count||0)+' 人</td>';
+  });
+  h+='<td style="text-align:center;font-weight:700;font-size:11px;background:#f5f5f5">'+crewTotal+' 人</td></tr>';
+  h+='</table>';
+
+  // 材料 + 機具 並排表格
+  var matItems=[];var equipItems=[];
+  if(data.materials){
+    Object.keys(data.materials).forEach(function(cat){
+      data.materials[cat].forEach(function(item){
+        if(item.checked)matItems.push(item);
+      });
+    });
+  }
+  if(data.equipment){
+    Object.keys(data.equipment).forEach(function(cat){
+      data.equipment[cat].forEach(function(item){
+        if(item.checked)equipItems.push(item);
+      });
+    });
+  }
+
+  var maxRows=Math.max(matItems.length,equipItems.length,1);
+  h+='<table class="pdf-table" style="margin-bottom:6px">';
+  h+='<tr><td colspan="2" class="pdf-section" style="width:50%">營建材料</td><td colspan="2" class="pdf-section" style="width:50%">機具設備</td></tr>';
+  h+='<tr style="background:#f0f0f0"><th>品名</th><th style="width:15%;text-align:right">數量</th><th>品名</th><th style="width:15%;text-align:right">數量</th></tr>';
+  for(var i=0;i<maxRows;i++){
+    h+='<tr>';
+    if(matItems[i]){
+      h+='<td>'+escHtml(matItems[i].name)+'</td><td style="text-align:right">'+(matItems[i].qty||'—')+' '+escHtml(matItems[i].unit)+'</td>';
+    }else{
+      h+='<td></td><td></td>';
+    }
+    if(equipItems[i]){
+      h+='<td>'+escHtml(equipItems[i].name)+'</td><td style="text-align:right">'+(equipItems[i].qty||'—')+' '+escHtml(equipItems[i].unit)+'</td>';
+    }else{
+      h+='<td></td><td></td>';
+    }
+    h+='</tr>';
+  }
+  if(maxRows===0){
+    h+='<tr><td colspan="2" style="text-align:center;color:#999;padding:10px">尚未勾選</td>';
+    h+='<td colspan="2" style="text-align:center;color:#999;padding:10px">尚未勾選</td></tr>';
+  }
   h+='</table>';
 
   // 備註
-  h+='<table class="pdf-table" style="margin-bottom:12px">';
-  h+='<tr><td style="font-weight:600;background:#f5f5f5;width:25%">備註</td><td>'+(data.progress.notes?escHtml(data.progress.notes):'<span style="color:#999">（無）</span>')+'</td></tr>';
+  h+='<table class="pdf-table" style="margin-bottom:6px">';
+  h+='<tr><td style="font-weight:600;background:#f0f0f0;width:18%">備　　註</td>';
+  h+='<td style="min-height:30px">'+(data.progress.notes?escHtml(data.progress.notes):'<span style="color:#999">（無）</span>')+'</td></tr>';
   h+='</table>';
-
-  // 三欄：人員 / 材料 / 機具
-  h+='<div style="display:flex;gap:8px;font-size:11px;margin-bottom:12px">';
-
-  // 人員
-  h+='<div style="flex:1"><div style="font-weight:600;margin-bottom:6px;font-size:12px">今日入場人員</div>';
-  var crewTotal=0;
-  var crewColors=['#2563EB','#DC2626','#059669','#D97706','#7C3AED','#EC4899','#06B6D4','#84CC16'];
-  if(data.crew&&data.crew.length>0){
-    data.crew.forEach(function(c){crewTotal+=(c.count||0)});
-    if(crewTotal>0){
-      // 圓餅圖
-      var pct=0;var gradParts=[];
-      data.crew.forEach(function(c,i){
-        if(c.count<=0)return;
-        var p=c.count/crewTotal*100;
-        var color=crewColors[i%crewColors.length];
-        gradParts.push(color+' '+pct.toFixed(1)+'% '+(pct+p).toFixed(1)+'%');
-        pct+=p;
-      });
-      h+='<div style="background:#f5f5f5;border-radius:8px;padding:10px;text-align:center">';
-      h+='<div style="width:80px;height:80px;border-radius:50%;background:conic-gradient('+gradParts.join(',')+');margin:0 auto 8px"></div>';
-      h+='<div style="font-size:10px;line-height:1.8">';
-      data.crew.forEach(function(c,i){
-        if(c.count<=0)return;
-        var color=crewColors[i%crewColors.length];
-        h+='<span style="color:'+color+'">■</span> '+escHtml(c.name)+' '+c.count+'人/'+Math.round(c.count/crewTotal*100)+'%<br>';
-      });
-      h+='</div></div>';
-    }else{
-      h+='<div style="color:#999;font-size:12px;padding:10px">尚未填寫人員</div>';
-    }
-  }
-  h+='</div>';
-
-  // 材料
-  h+='<div style="flex:1"><div style="font-weight:600;margin-bottom:6px;font-size:12px">營建材料</div>';
-  var hasMat=false;
-  if(data.materials){
-    h+='<table class="pdf-table" style="font-size:10px">';
-    Object.keys(data.materials).forEach(function(cat){
-      data.materials[cat].forEach(function(item){
-        if(!item.checked)return;
-        hasMat=true;
-        h+='<tr><td>'+escHtml(item.name)+'</td><td>'+(item.qty||'—')+escHtml(item.unit)+'</td></tr>';
-      });
-    });
-    h+='</table>';
-  }
-  if(!hasMat)h+='<div style="color:#999;font-size:12px;padding:10px">尚未勾選材料</div>';
-  h+='</div>';
-
-  // 機具
-  h+='<div style="flex:1"><div style="font-weight:600;margin-bottom:6px;font-size:12px">機具設備</div>';
-  var hasEquip=false;
-  if(data.equipment){
-    h+='<table class="pdf-table" style="font-size:10px">';
-    Object.keys(data.equipment).forEach(function(cat){
-      data.equipment[cat].forEach(function(item){
-        if(!item.checked)return;
-        hasEquip=true;
-        h+='<tr><td>'+escHtml(item.name)+'</td><td>'+(item.qty||'—')+escHtml(item.unit)+'</td></tr>';
-      });
-    });
-    h+='</table>';
-  }
-  if(!hasEquip)h+='<div style="color:#999;font-size:12px;padding:10px">尚未勾選機具</div>';
-  h+='</div></div>';
 
   // 簽核欄
   var signerKeys=Object.keys(settings.signers);
-  var sw=Math.floor(100/signerKeys.length);
-  h+='<table class="pdf-table" style="font-size:11px"><tr>';
+  h+='<table class="pdf-table">';
+  h+='<tr>';
   signerKeys.forEach(function(k){
-    h+='<td style="width:'+sw+'%;text-align:center;font-weight:600;background:#f5f5f5">'+escHtml(k)+'</td>';
+    h+='<td style="text-align:center;font-weight:600;background:#f0f0f0;font-size:10px">'+escHtml(k)+'</td>';
   });
   h+='</tr><tr>';
-  signerKeys.forEach(function(){h+='<td style="height:30px"></td>'});
+  signerKeys.forEach(function(){h+='<td style="height:28px"></td>'});
   h+='</tr></table>';
 
-  document.getElementById('pdf-page1').innerHTML=h;
+  h+='<div class="pdf-footer">第 1 頁</div>';
+  h+='</div>'; // close pdf-body
+  pages.push(h);
 
-  // ===== 第二頁：施工紀錄 =====
-  var h2='<div style="text-align:center;font-size:14px;font-weight:700;margin-bottom:10px;color:#333">施工紀錄明細表</div>';
-  h2+='<div style="text-align:center;font-size:11px;color:#666;margin-bottom:12px">'+currentReportDate+'（'+dow+'）｜'+escHtml(settings.projectName)+'</div>';
-
+  // ===== 第二頁（及後續）：施工紀錄 =====
   if(logs.length>0){
-    h2+='<table class="pdf-table" style="font-size:10px">';
-    h2+='<tr style="background:#f5f5f5"><th>施工項目</th><th>負責人</th><th>施工單位</th><th>時段</th><th>工時</th><th>累計</th><th>代工</th></tr>';
+    var h2='';
+    h2+='<div class="pdf-title">營 建 工 程 管 理 日 報 表</div>';
+    h2+='<div class="pdf-company">'+escHtml(settings.companyName)+'</div>';
+    h2+='<div class="pdf-body">';
+    h2+='<div class="pdf-page-header">施工紀錄明細　'+currentReportDate+'（'+dow+'）　'+escHtml(settings.projectName)+'</div>';
+
+    // 摘要表
+    h2+='<table class="pdf-table" style="margin-bottom:6px">';
+    h2+='<tr><td colspan="7" class="pdf-section">施工紀錄摘要</td></tr>';
+    h2+='<tr style="background:#f0f0f0"><th>施工項目</th><th>負責人</th><th>施工單位</th><th style="text-align:center">時段</th><th style="text-align:center">工時</th><th style="text-align:center">累計</th><th>代工廠商</th></tr>';
     logs.forEach(function(rec){
       var period=[];
       if(rec.am)period.push('上午');
@@ -1814,17 +1829,18 @@ function renderPreview(){
       h2+='<td>'+escHtml(rec.title||'')+'</td>';
       h2+='<td>'+escHtml(rec.person||'')+'</td>';
       h2+='<td>'+escHtml(rec.unit||'')+'</td>';
-      h2+='<td>'+periodStr+'</td>';
-      h2+='<td>'+(rec.hours||0)+'hr</td>';
-      h2+='<td>'+(rec.totalHours||0)+'hr</td>';
-      h2+='<td>'+(rec.subcontractor?'<span style="color:red;font-weight:600">'+escHtml(rec.subcontractorName||'')+'</span>':'—')+'</td>';
+      h2+='<td style="text-align:center">'+periodStr+'</td>';
+      h2+='<td style="text-align:center">'+(rec.hours||0)+' hr</td>';
+      h2+='<td style="text-align:center">'+(rec.totalHours||0)+' hr</td>';
+      h2+='<td>'+(rec.subcontractor?'<span style="color:#c00;font-weight:700">'+escHtml(rec.subcontractorName||'是')+'</span>':'—')+'</td>';
       h2+='</tr>';
     });
     h2+='</table>';
 
-    h2+='<div style="margin-top:12px;font-size:11px;font-weight:600">各項施工內容明細</div>';
-    h2+='<table class="pdf-table" style="font-size:10px;margin-top:6px">';
-    h2+='<tr style="background:#f5f5f5"><th>施工項目</th><th>施工位置</th><th>今日工作內容</th><th>明日工作內容</th></tr>';
+    // 明細表
+    h2+='<table class="pdf-table">';
+    h2+='<tr><td colspan="4" class="pdf-section">各項施工內容明細</td></tr>';
+    h2+='<tr style="background:#f0f0f0"><th style="width:18%">施工項目</th><th style="width:18%">施工位置</th><th>今日工作內容</th><th>明日工作內容</th></tr>';
     logs.forEach(function(rec){
       h2+='<tr>';
       h2+='<td>'+escHtml(rec.title||'')+'</td>';
@@ -1834,18 +1850,190 @@ function renderPreview(){
       h2+='</tr>';
     });
     h2+='</table>';
-  }else{
-    h2+='<div style="text-align:center;padding:30px;color:#999;font-size:13px">今日尚無施工紀錄</div>';
+
+    h2+='<div class="pdf-footer">第 2 頁</div>';
+    h2+='</div>'; // close pdf-body
+    pages.push(h2);
   }
 
-  document.getElementById('pdf-page2').innerHTML=h2;
+  // ===== 渲染所有頁面 =====
+  var container=document.getElementById('pdf-pages-container');
+  container.innerHTML='';
+  pages.forEach(function(pageHtml,idx){
+    var div=document.createElement('div');
+    div.className='pdf-page';
+    div.id='pdf-page-'+(idx+1);
+    div.innerHTML=pageHtml;
+    if(idx>0)div.style.display='none';
+    container.appendChild(div);
+  });
+
+  // 渲染分頁標籤
+  var tabs=document.getElementById('pdf-tabs');
+  tabs.innerHTML='';
+  pages.forEach(function(_,idx){
+    var label=idx===0?'第一頁：日報摘要':'第'+(idx+1)+'頁：施工明細';
+    var tab=document.createElement('div');
+    tab.className='tag'+(idx===0?' on':'');
+    tab.style.cssText='flex:1;text-align:center;padding:10px;font-size:14px;cursor:pointer';
+    tab.textContent=label;
+    tab.onclick=function(){showPdfPage(idx+1)};
+    tabs.appendChild(tab);
+  });
+
+  // 儲存頁數
+  window._pdfPageCount=pages.length;
 }
 
-function showPdfPage(n,el){
-  document.getElementById('pdf-page1').style.display=n===1?'block':'none';
-  document.getElementById('pdf-page2').style.display=n===2?'block':'none';
-  document.getElementById('pdf-tab1').classList.toggle('on',n===1);
-  document.getElementById('pdf-tab2').classList.toggle('on',n===2);
+function showPdfPage(n){
+  var count=window._pdfPageCount||1;
+  for(var i=1;i<=count;i++){
+    var page=document.getElementById('pdf-page-'+i);
+    if(page)page.style.display=i===n?'block':'none';
+  }
+  var tabs=document.querySelectorAll('#pdf-tabs .tag');
+  tabs.forEach(function(t,idx){t.classList.toggle('on',idx+1===n)});
+}
+
+// ===== PDF 產生 =====
+var pdfGenerating=false;
+
+function getPdfFileName(){
+  var settings=loadSettings();
+  var projName=settings.projectName||'日報';
+  return projName+'_日報_'+currentReportDate+'.pdf';
+}
+
+function showPdfLoading(show){
+  var btnShare=document.getElementById('btn-share-pdf');
+  var btnDown=document.getElementById('btn-download-pdf');
+  if(show){
+    btnShare.disabled=true;btnShare.style.opacity='0.5';
+    btnDown.disabled=true;btnDown.style.opacity='0.5';
+    btnDown.textContent='⏳ 產生中...';
+  }else{
+    btnShare.disabled=false;btnShare.style.opacity='1';
+    btnDown.disabled=false;btnDown.style.opacity='1';
+    btnDown.textContent='📥 下載 PDF';
+  }
+}
+
+function getJsPDF(){
+  // jsPDF 2.x UMD 可能掛在不同的全域變數上
+  if(typeof jspdf!=='undefined'&&jspdf.jsPDF) return jspdf.jsPDF;
+  if(typeof window.jspdf!=='undefined'&&window.jspdf.jsPDF) return window.jspdf.jsPDF;
+  if(typeof jsPDF!=='undefined') return jsPDF;
+  if(typeof window.jsPDF!=='undefined') return window.jsPDF;
+  return null;
+}
+
+function generatePDF(callback){
+  if(pdfGenerating)return;
+
+  var JsPDFClass=getJsPDF();
+  if(!JsPDFClass){
+    alert('PDF 函式庫尚未載入完成，請稍後再試。\n如果持續失敗，請重新整理頁面。');
+    return;
+  }
+  if(typeof html2canvas==='undefined'){
+    alert('截圖函式庫尚未載入完成，請稍後再試。');
+    return;
+  }
+
+  pdfGenerating=true;
+  showPdfLoading(true);
+
+  var pageCount=window._pdfPageCount||1;
+  var pageEls=[];
+  var origDisplays=[];
+  for(var i=1;i<=pageCount;i++){
+    var el=document.getElementById('pdf-page-'+i);
+    if(el){
+      pageEls.push(el);
+      origDisplays.push(el.style.display);
+      el.style.display='block';
+    }
+  }
+
+  var scale=2;
+  var opts={scale:scale,useCORS:true,backgroundColor:'#ffffff',logging:false};
+
+  // 依序截圖每一頁
+  function capturePages(els,canvases){
+    if(els.length===0)return Promise.resolve(canvases);
+    var el=els[0];
+    var rest=els.slice(1);
+    return html2canvas(el,opts).then(function(canvas){
+      canvases.push(canvas);
+      return capturePages(rest,canvases);
+    });
+  }
+
+  capturePages(pageEls,[]).then(function(canvases){
+    // 還原顯示狀態
+    pageEls.forEach(function(el,idx){el.style.display=origDisplays[idx]});
+
+    var pdf=new JsPDFClass({orientation:'portrait',unit:'mm',format:'a4'});
+    var pageW=210,pageH=297;
+
+    canvases.forEach(function(canvas,idx){
+      if(idx>0)pdf.addPage();
+      var ratio=canvas.height/canvas.width;
+      var imgH=pageW*ratio;
+      if(imgH>pageH){
+        // 內容超過一頁高度，縮放至填滿
+        pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,pageW,pageH);
+      }else{
+        // 寬度填滿，高度按比例
+        pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,pageW,imgH);
+      }
+    });
+
+    pdfGenerating=false;
+    showPdfLoading(false);
+    callback(pdf);
+  }).catch(function(err){
+    pageEls.forEach(function(el,idx){el.style.display=origDisplays[idx]});
+    pdfGenerating=false;
+    showPdfLoading(false);
+    alert('PDF 產生失敗：'+err.message);
+  });
+}
+
+function downloadPDF(){
+  generatePDF(function(pdf){
+    pdf.save(getPdfFileName());
+  });
+}
+
+function sharePDF(){
+  // 檢查是否支援 Web Share API（手機瀏覽器）
+  if(!navigator.share||!navigator.canShare){
+    // 不支援分享，改為下載
+    alert('此瀏覽器不支援直接分享，將改為下載 PDF。\n下載後可手動透過 LINE 傳送。');
+    downloadPDF();
+    return;
+  }
+  generatePDF(function(pdf){
+    var blob=pdf.output('blob');
+    var fileName=getPdfFileName();
+    var file=new File([blob],fileName,{type:'application/pdf'});
+
+    if(navigator.canShare({files:[file]})){
+      navigator.share({
+        title:fileName,
+        files:[file]
+      }).catch(function(err){
+        if(err.name!=='AbortError'){
+          // 分享失敗，改為下載
+          pdf.save(fileName);
+        }
+      });
+    }else{
+      // 不支援分享檔案，改為下載
+      pdf.save(fileName);
+    }
+  });
 }
 </script>
 
