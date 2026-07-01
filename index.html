@@ -2030,6 +2030,34 @@ function viewHistoryDetail(dateStr){
     }
   }
 
+  // 施工紀錄
+  var logs=loadLogRecords().filter(function(r){return r.date===dateStr});
+  if(logs.length>0){
+    var logCard=document.createElement('div');logCard.className='card';
+    var logTitle=document.createElement('div');logTitle.className='card-title';logTitle.textContent='📝 今日施工紀錄';
+    logCard.appendChild(logTitle);
+    logs.forEach(function(rec){
+      var row=document.createElement('div');
+      row.style.cssText='padding:10px 0;border-bottom:1px solid var(--border)';
+      var period=[];
+      if(rec.am)period.push('上午');
+      if(rec.pm)period.push('下午');
+      var periodText=period.length>0?period.join('、'):'—';
+      row.innerHTML='<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'+
+        '<div style="font-size:15px;font-weight:600">'+escHtml(rec.title||'未命名施工紀錄')+'</div>'+
+        '<div style="font-size:12px;color:var(--primary);font-weight:600;white-space:nowrap">'+periodText+'</div>'+
+        '</div>'+
+        '<div style="font-size:13px;color:var(--text2);margin-top:4px">'+
+        escHtml(rec.person||'—')+'｜'+escHtml(rec.unit||'—')+'｜'+(rec.hours||0)+' hr｜累計 '+(rec.totalHours||0)+' hr'+
+        '</div>'+
+        (rec.location?'<div style="font-size:13px;color:var(--text2);margin-top:2px">位置：'+escHtml(rec.location)+'</div>':'')+
+        (rec.workToday?'<div style="font-size:13px;line-height:1.5;margin-top:6px;background:var(--gray-light);border-radius:8px;padding:8px">'+escHtml(rec.workToday)+'</div>':'')+
+        (rec.subcontractor?'<div style="font-size:12px;color:var(--red);font-weight:600;margin-top:6px">代工廠商：'+escHtml(rec.subcontractorName||'是')+'</div>':'');
+      logCard.appendChild(row);
+    });
+    content.appendChild(logCard);
+  }
+
   // 進度
   if(rpt.progress){
     var progCard=document.createElement('div');progCard.className='card';
