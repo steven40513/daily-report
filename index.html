@@ -10,6 +10,7 @@
 <link rel="manifest" href="manifest.json">
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>營建日報系統</title>
 <style>
@@ -204,6 +205,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
           <input type="date" value="2028-06-01" style="width:100%;padding:10px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px">
         </div>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">☁️ 雲端連線</div>
+      <p id="supabase-status" style="font-size:13px;color:var(--text2);margin-bottom:8px">尚未連線，現在使用本機保存。</p>
+      <div style="display:flex;gap:8px">
+        <input id="supabase-email" type="email" placeholder="Email 測試登入" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px">
+        <button class="btn btn-primary btn-sm" onclick="requestSupabaseOtp()">登入</button>
+      </div>
+      <button class="btn btn-green" id="supabase-sync-btn" onclick="syncCurrentReportToSupabase()" style="margin-top:10px">同步今日日報</button>
+      <p style="font-size:12px;color:var(--text3);margin-top:8px">登入後可手動同步到雲端；未登入時仍保留本機保存。</p>
     </div>
 
     <div class="card">
@@ -774,18 +786,228 @@ var DEFAULT_SETTINGS={
 
 // ===== localStorage 存取 =====
 var STORE_PREFIX='cdr-';
+var SUPABASE_CONFIG={
+  url:'https://wadlcguhhmmpizbcbuus.supabase.co',
+  publishableKey:'sb_publishable_9P7BMy7Sm2CSN_jbHjpINQ_zZZk74_P'
+};
+var supabaseClient=null;
+function getSupabaseClient(){
+  if(!SUPABASE_CONFIG.url||!SUPABASE_CONFIG.publishableKey)return null;
+  if(supabaseClient)return supabaseClient;
+  if(!window.supabase||typeof window.supabase.createClient!=='function')return null;
+  // Source: https://supabase.com/docs/reference/javascript/initializing
+  supabaseClient=window.supabase.createClient(SUPABASE_CONFIG.url,SUPABASE_CONFIG.publishableKey,{
+    auth:{persistSession:true,autoRefreshToken:true}
+  });
+  return supabaseClient;
+}
+function updateSupabaseStatus(message,isError){
+  var el=document.getElementById('supabase-status');
+  if(!el)return;
+  el.textContent=message;
+  el.style.color=isError?'var(--red)':'var(--text2)';
+}
+async function refreshSupabaseStatus(){
+  var client=getSupabaseClient();
+  if(!client){
+    updateSupabaseStatus('Supabase 尚未載入，現在使用本機保存。',false);
+    return;
+  }
+  try{
+    var result=await client.auth.getSession();
+    var email=result&&result.data&&result.data.session&&result.data.session.user?result.data.session.user.email:'';
+    updateSupabaseStatus(email?'已登入：'+email+'。雲端保存準備中。':'尚未登入，現在使用本機保存。',false);
+  }catch(e){
+    updateSupabaseStatus('無法讀取登入狀態，現在使用本機保存。',true);
+  }
+}
+async function requestSupabaseOtp(){
+  var client=getSupabaseClient();
+  if(!client){
+    alert('Supabase 尚未載入完成，請確認網路連線後重新整理。');
+    updateSupabaseStatus('Supabase 尚未載入，現在使用本機保存。',true);
+    return;
+  }
+  var input=document.getElementById('supabase-email');
+  var email=input?input.value.trim():'';
+  if(!email){alert('請輸入 Email');return}
+  try{
+    // Source: https://supabase.com/docs/reference/javascript/auth-signinwithotp
+    var result=await client.auth.signInWithOtp({
+      email:email,
+      options:{emailRedirectTo:window.location.href.split('#')[0]}
+    });
+    if(result.error)throw result.error;
+    updateSupabaseStatus('登入信已寄出，請到 Email 點擊連結。',false);
+  }catch(e){
+    updateSupabaseStatus('登入信寄送失敗：'+(e.message||'未知錯誤'),true);
+  }
+}
+function requireSupabaseClient(){
+  var client=getSupabaseClient();
+  if(!client)throw new Error('Supabase 尚未載入完成，請確認網路連線後重新整理。');
+  return client;
+}
+function mapReportItemsForSupabase(reportId,data){
+  var items=[];
+  (data.crew||[]).forEach(function(c,idx){
+    items.push({
+      report_id:reportId,
+      item_type:'crew',
+      category:'crew',
+      name:c.name,
+      unit:'人',
+      quantity:Number(c.count)||0,
+      is_checked:(Number(c.count)||0)>0,
+      is_custom:false,
+      sort_order:idx
+    });
+  });
+  Object.keys(data.materials||{}).forEach(function(cat){
+    (data.materials[cat]||[]).forEach(function(item,idx){
+      items.push({
+        report_id:reportId,
+        item_type:'material',
+        category:cat,
+        name:item.name,
+        unit:item.unit||'',
+        quantity:Number(item.qty)||0,
+        is_checked:!!item.checked,
+        is_custom:cat==='other',
+        sort_order:idx
+      });
+    });
+  });
+  Object.keys(data.equipment||{}).forEach(function(cat){
+    (data.equipment[cat]||[]).forEach(function(item,idx){
+      items.push({
+        report_id:reportId,
+        item_type:'equipment',
+        category:cat,
+        name:item.name,
+        unit:item.unit||'',
+        quantity:Number(item.qty)||0,
+        is_checked:!!item.checked,
+        is_custom:false,
+        sort_order:idx
+      });
+    });
+  });
+  return items;
+}
+function mapWorkLogsForSupabase(reportId,logs,userId){
+  return logs.map(function(rec){
+    return {
+      report_id:reportId,
+      title:rec.title||'未命名施工紀錄',
+      person:rec.person||'',
+      contractor_unit:rec.unit||'',
+      period_am:!!rec.am,
+      period_pm:!!rec.pm,
+      hours:Number(rec.hours)||0,
+      total_hours:Number(rec.totalHours)||0,
+      location:rec.location||'',
+      work_today:rec.workToday||'',
+      work_tomorrow:rec.workTomorrow||'',
+      has_subcontractor:!!rec.subcontractor,
+      subcontractor_name:rec.subcontractorName||'',
+      filled_by:userId,
+      status:'draft',
+      confirmed_by:null
+    };
+  });
+}
+function assertSupabaseOk(result,label){
+  if(result&&result.error)throw new Error(label+'：'+result.error.message);
+  return result;
+}
+async function getFirstSupabaseProject(client){
+  var result=await client.from('projects').select('id').limit(1).single();
+  assertSupabaseOk(result,'讀取專案失敗');
+  if(!result.data||!result.data.id)throw new Error('找不到可用專案，請先執行 seed SQL。');
+  return result.data;
+}
+async function syncCurrentReportToSupabase(){
+  try{
+    updateSupabaseStatus('正在同步今日日報...',false);
+    var client=requireSupabaseClient();
+    var userResult=await client.auth.getUser();
+    assertSupabaseOk(userResult,'讀取登入者失敗');
+    var user=userResult.data&&userResult.data.user;
+    if(!user)throw new Error('尚未登入，請先用 Email 登入。');
+    var project=await getFirstSupabaseProject(client);
+    autoSave();
+    var data=collectReportData();
+    var reportPayload={
+      project_id:project.id,
+      report_date:currentReportDate,
+      created_by:user.id,
+      weather_am:data.weather&&data.weather.am?data.weather.am:null,
+      weather_pm:data.weather&&data.weather.pm?data.weather.pm:null,
+      construction_days:data.constructionDays||1,
+      notes:data.progress&&data.progress.notes?data.progress.notes:'',
+      status:'draft',
+      client_updated_at:new Date().toISOString()
+    };
+    // Source: https://supabase.com/docs/reference/javascript/upsert
+    var reportResult=await client.from('daily_reports')
+      .upsert(reportPayload,{onConflict:'project_id,report_date'})
+      .select('id')
+      .single();
+    assertSupabaseOk(reportResult,'同步日報主檔失敗');
+    var reportId=reportResult.data.id;
+    await client.from('report_items').delete().eq('report_id',reportId).then(function(result){assertSupabaseOk(result,'清除日報明細失敗')});
+    var itemRows=mapReportItemsForSupabase(reportId,data);
+    if(itemRows.length>0){
+      await client.from('report_items').insert(itemRows).then(function(result){assertSupabaseOk(result,'同步日報明細失敗')});
+    }
+    await client.from('work_logs').delete().eq('report_id',reportId).then(function(result){assertSupabaseOk(result,'清除施工紀錄失敗')});
+    var localLogs=loadLogRecords().filter(function(r){return r.date===currentReportDate});
+    var workLogRows=mapWorkLogsForSupabase(reportId,localLogs,user.id);
+    if(workLogRows.length>0){
+      await client.from('work_logs').insert(workLogRows).then(function(result){assertSupabaseOk(result,'同步施工紀錄失敗')});
+    }
+    updateSupabaseStatus('已同步今日日報到雲端：'+new Date().toLocaleTimeString('zh-TW'),false);
+    return reportId;
+  }catch(e){
+    updateSupabaseStatus('雲端同步失敗：'+(e.message||'未知錯誤'),true);
+    return null;
+  }
+}
+var LocalReportRepository={
+  saveRaw:function(key,data){
+    localStorage.setItem(STORE_PREFIX+key,JSON.stringify(data));
+  },
+  loadRaw:function(key){
+    var s=localStorage.getItem(STORE_PREFIX+key);
+    return s?JSON.parse(s):null;
+  },
+  saveSettings:function(data){
+    this.saveRaw('settings',data);
+  },
+  loadSettings:function(){
+    return this.loadRaw('settings')||JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  },
+  saveReport:function(dateStr,data){
+    this.saveRaw('report-'+dateStr,data);
+  },
+  loadReport:function(dateStr){
+    return this.loadRaw('report-'+dateStr);
+  }
+};
+var ReportRepository=LocalReportRepository;
 function saveToStore(key,data){
-  try{localStorage.setItem(STORE_PREFIX+key,JSON.stringify(data))}
+  try{ReportRepository.saveRaw(key,data)}
   catch(e){console.warn('儲存失敗',e)}
 }
 function loadFromStore(key){
-  try{var s=localStorage.getItem(STORE_PREFIX+key);return s?JSON.parse(s):null}
+  try{return ReportRepository.loadRaw(key)}
   catch(e){return null}
 }
-function saveSettings(data){saveToStore('settings',data)}
-function loadSettings(){return loadFromStore('settings')||JSON.parse(JSON.stringify(DEFAULT_SETTINGS))}
-function saveReport(dateStr,data){saveToStore('report-'+dateStr,data)}
-function loadReport(dateStr){return loadFromStore('report-'+dateStr)}
+function saveSettings(data){try{ReportRepository.saveSettings(data)}catch(e){console.warn('設定儲存失敗',e)}}
+function loadSettings(){try{return ReportRepository.loadSettings()}catch(e){return JSON.parse(JSON.stringify(DEFAULT_SETTINGS))}}
+function saveReport(dateStr,data){try{ReportRepository.saveReport(dateStr,data)}catch(e){console.warn('日報儲存失敗',e)}}
+function loadReport(dateStr){try{return ReportRepository.loadReport(dateStr)}catch(e){return null}}
 // ===== 當前日報日期 =====
 var currentReportDate=getTodayStr();
 
@@ -1065,6 +1287,42 @@ function confirmSettingsCrewAdd(){
     settings.crewTypes.push(name);
     saveSettings(settings);
   }
+  // 讓設定頁新增的工種立即出現在目前日報的人員步驟。
+  var existsInReport=false;
+  document.querySelectorAll('#screen-step2 .crew-label').forEach(function(el){
+    if(el.textContent===name)existsInReport=true;
+  });
+  if(!existsInReport){
+    var crewContainer=document.querySelector('#screen-step2 .content');
+    var addBtnEl=document.getElementById('crew-add-btn');
+    if(crewContainer&&addBtnEl){
+      var row=document.createElement('div');
+      row.className='crew-row';
+      var label=document.createElement('span');
+      label.className='crew-label';
+      label.textContent=name;
+      var ctrl=document.createElement('div');
+      ctrl.className='crew-ctrl';
+      var minusBtn=document.createElement('div');
+      minusBtn.className='crew-btn';
+      minusBtn.textContent='−';
+      minusBtn.onclick=function(){adjustCrew(this,-1)};
+      var numSpan=document.createElement('span');
+      numSpan.className='crew-num';
+      numSpan.textContent='0';
+      var plusBtn=document.createElement('div');
+      plusBtn.className='crew-btn';
+      plusBtn.textContent='＋';
+      plusBtn.onclick=function(){adjustCrew(this,1)};
+      ctrl.appendChild(minusBtn);
+      ctrl.appendChild(numSpan);
+      ctrl.appendChild(plusBtn);
+      row.appendChild(label);
+      row.appendChild(ctrl);
+      crewContainer.insertBefore(row,addBtnEl);
+      updateCrewTotal();
+    }
+  }
 }
 
 // ===== 顯示帶入提示 =====
@@ -1080,6 +1338,7 @@ function initApp(){
   var settings=loadSettings();
   // 載入設定頁
   loadSettingsUI();
+  refreshSupabaseStatus();
   updateHomeInfo();
   // 載入今天的日報
   var todayData=loadReport(currentReportDate);
