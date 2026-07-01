@@ -214,8 +214,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
         <input id="supabase-email" type="email" placeholder="Email 測試登入" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px">
         <button class="btn btn-primary btn-sm" onclick="requestSupabaseOtp()">登入</button>
       </div>
-      <button class="btn btn-green" id="supabase-sync-btn" onclick="syncCurrentReportToSupabase()" style="margin-top:10px">同步今日日報</button>
-      <p style="font-size:12px;color:var(--text3);margin-top:8px">登入後可手動同步到雲端；未登入時仍保留本機保存。</p>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-green" id="supabase-sync-btn" onclick="syncCurrentReportToSupabase()" style="flex:1">同步今日日報</button>
+        <button class="btn btn-outline" id="supabase-load-btn" onclick="loadCurrentReportFromSupabase()" style="flex:1">讀取雲端日報</button>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-top:8px">登入後可手動同步或讀取雲端日報；未登入時仍保留本機保存。</p>
     </div>
 
     <div class="card">
@@ -917,6 +920,78 @@ function mapWorkLogsForSupabase(reportId,logs,userId){
     };
   });
 }
+function createEmptyReportDataForDate(dateStr){
+  var settings=loadSettings();
+  var data={
+    date:dateStr,
+    weather:{am:'',pm:''},
+    constructionDays:daysBetween(settings.startDate,dateStr)+1,
+    crew:[],
+    materials:{},
+    equipment:{},
+    progress:{today:'',tomorrow:'',notes:''},
+    savedAt:new Date().toISOString()
+  };
+  Object.keys(settings.materials||{}).forEach(function(cat){data.materials[cat]=[]});
+  Object.keys(settings.equipment||{}).forEach(function(cat){data.equipment[cat]=[]});
+  return data;
+}
+function mapSupabaseReportToLocalData(report,items){
+  var data=createEmptyReportDataForDate(report.report_date||currentReportDate);
+  data.weather={
+    am:report.weather_am||'',
+    pm:report.weather_pm||''
+  };
+  data.constructionDays=report.construction_days||data.constructionDays;
+  data.progress.notes=report.notes||'';
+  data.savedAt=report.client_updated_at||report.updated_at||new Date().toISOString();
+  (items||[]).forEach(function(item){
+    var row={
+      name:item.name||'',
+      unit:item.unit||'',
+      checked:!!item.is_checked,
+      qty:item.quantity===null||item.quantity===undefined?'':String(item.quantity)
+    };
+    if(item.item_type==='crew'){
+      data.crew.push({
+        name:item.name||'',
+        count:Number(item.quantity)||0
+      });
+    }else if(item.item_type==='material'){
+      if(!data.materials[item.category])data.materials[item.category]=[];
+      data.materials[item.category].push(row);
+    }else if(item.item_type==='equipment'){
+      if(!data.equipment[item.category])data.equipment[item.category]=[];
+      data.equipment[item.category].push(row);
+    }
+  });
+  return data;
+}
+function mapSupabaseWorkLogsToLocalLogs(dateStr,rows){
+  return (rows||[]).map(function(row){
+    return {
+      id:row.id||('cloud-log-'+Date.now()+'-'+Math.random().toString(36).substr(2,5)),
+      date:dateStr,
+      title:row.title||'未命名施工紀錄',
+      person:row.person||'',
+      unit:row.contractor_unit||'',
+      am:!!row.period_am,
+      pm:!!row.period_pm,
+      hours:Number(row.hours)||0,
+      totalHours:Number(row.total_hours)||0,
+      location:row.location||'',
+      workToday:row.work_today||'',
+      workTomorrow:row.work_tomorrow||'',
+      subcontractor:!!row.has_subcontractor,
+      subcontractorName:row.subcontractor_name||'',
+      savedAt:row.updated_at||row.created_at||new Date().toISOString()
+    };
+  });
+}
+function replaceLocalLogsForDate(dateStr,cloudLogs){
+  var records=loadLogRecords().filter(function(rec){return rec.date!==dateStr});
+  saveLogRecords(records.concat(cloudLogs));
+}
 function assertSupabaseOk(result,label){
   if(result&&result.error)throw new Error(label+'：'+result.error.message);
   return result;
@@ -971,6 +1046,51 @@ async function syncCurrentReportToSupabase(){
     return reportId;
   }catch(e){
     updateSupabaseStatus('雲端同步失敗：'+(e.message||'未知錯誤'),true);
+    return null;
+  }
+}
+async function loadCurrentReportFromSupabase(){
+  try{
+    updateSupabaseStatus('正在讀取雲端日報...',false);
+    var client=requireSupabaseClient();
+    var userResult=await client.auth.getUser();
+    assertSupabaseOk(userResult,'讀取登入者失敗');
+    var user=userResult.data&&userResult.data.user;
+    if(!user)throw new Error('尚未登入，請先用 Email 登入。');
+    var project=await getFirstSupabaseProject(client);
+    var reportResult=await client.from('daily_reports')
+      .select('id,report_date,weather_am,weather_pm,construction_days,notes,client_updated_at,updated_at')
+      .eq('project_id',project.id)
+      .eq('report_date',currentReportDate)
+      .maybeSingle();
+    assertSupabaseOk(reportResult,'讀取日報主檔失敗');
+    if(!reportResult.data){
+      updateSupabaseStatus('雲端找不到 '+currentReportDate+' 的日報，請先同步這一天。',true);
+      return null;
+    }
+    var report=reportResult.data;
+    var itemResult=await client.from('report_items')
+      .select('item_type,category,name,unit,quantity,is_checked,sort_order')
+      .eq('report_id',report.id)
+      .order('sort_order',{ascending:true});
+    assertSupabaseOk(itemResult,'讀取日報明細失敗');
+    var logResult=await client.from('work_logs')
+      .select('id,title,person,contractor_unit,period_am,period_pm,hours,total_hours,location,work_today,work_tomorrow,has_subcontractor,subcontractor_name,created_at,updated_at')
+      .eq('report_id',report.id)
+      .order('created_at',{ascending:true});
+    assertSupabaseOk(logResult,'讀取施工紀錄失敗');
+    var data=mapSupabaseReportToLocalData(report,itemResult.data||[]);
+    var cloudLogs=mapSupabaseWorkLogsToLocalLogs(currentReportDate,logResult.data||[]);
+    saveReport(currentReportDate,data);
+    replaceLocalLogsForDate(currentReportDate,cloudLogs);
+    populateReportUI(data);
+    updateLogList();
+    updateHistoryList();
+    updateWeeklyStats();
+    updateSupabaseStatus('已讀取雲端日報：'+currentReportDate+'，施工紀錄 '+cloudLogs.length+' 筆。',false);
+    return data;
+  }catch(e){
+    updateSupabaseStatus('雲端讀取失敗：'+(e.message||'未知錯誤'),true);
     return null;
   }
 }
