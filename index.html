@@ -814,7 +814,7 @@ var DEFAULT_SETTINGS={
 };
 
 // ===== LINE Login 流程檢查哨系統 =====
-var LINE_LOGIN_BUILD='v2026-07-02e';
+var LINE_LOGIN_BUILD='v2026-07-02f';
 var _lineCP={log:[],ss:[]};
 function _cp(id,msg,data){
   var entry={id:id,msg:msg,t:new Date().toLocaleTimeString(),data:data||null};
@@ -2210,6 +2210,7 @@ function handleAuthCallback(){
       supabaseLoaded:!!window.supabase,
       createClientExists:!!(window.supabase&&window.supabase.createClient)
     });
+    alert('[CP8-ERR] Supabase client 為 null!\nsupabase loaded: '+!!window.supabase);
     updateSupabaseStatus('Supabase 尚未載入，請重新整理頁面。',true);
     showCheckpointPanel();
     return;
@@ -2217,6 +2218,7 @@ function handleAuthCallback(){
   _cp('CP8a','Supabase client 就緒',{
     hasExchange:typeof client.auth.exchangeCodeForSession
   });
+  alert('[CP8a] Supabase client OK, exchange type: '+typeof client.auth.exchangeCodeForSession);
 
   if(hasAuthInHash){
     try{
@@ -2240,11 +2242,13 @@ function handleAuthCallback(){
     var params=new URLSearchParams(search);
     var code=params.get('code');
     if(!code){
-      _cp('CP9-ERR','URL 有 code= 但解析為空',{search:search.substring(0,60)});
+      _cp('CP9-ERR','URL 有 code= 但解析為空',{search:search.substring(0,120)});
+      alert('[CP9-ERR] code 解析為空!\nsearch: '+search.substring(0,120));
       showCheckpointPanel();
       return;
     }
     _cp('CP9','準備 exchangeCodeForSession',{code8:code.substring(0,8)});
+    alert('[CP9] code 取得成功: '+code.substring(0,12)+'...');
     updateSupabaseStatus('正在交換 code 取得 session...',false);
 
     // 10 秒 timeout 兜底：如果 promise 掛住不回應
