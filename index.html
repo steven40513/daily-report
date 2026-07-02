@@ -814,7 +814,7 @@ var DEFAULT_SETTINGS={
 };
 
 // ===== LINE Login 流程檢查哨系統 =====
-var LINE_LOGIN_BUILD='v2026-07-02f';
+var LINE_LOGIN_BUILD='v2026-07-02g';
 var _lineCP={log:[],ss:[]};
 function _cp(id,msg,data){
   var entry={id:id,msg:msg,t:new Date().toLocaleTimeString(),data:data||null};
@@ -1042,11 +1042,6 @@ async function signInWithLine(){
 
     var isStandalone=window.navigator.standalone||window.matchMedia('(display-mode: standalone)').matches;
     _cp('CP5','即將跳轉',{standalone:isStandalone,target:authUrl.substring(0,80)});
-
-    // 跳轉前顯示 checkpoint，讓使用者有機會截圖
-    showCheckpointPanel();
-    // 延遲 1.5 秒再跳轉，確保 checkpoint 寫入 storage
-    await new Promise(function(r){setTimeout(r,1500);});
 
     if(isStandalone){
       window.open(authUrl,'_blank');
@@ -2191,13 +2186,22 @@ function handleAuthCallback(){
   var hash=window.location.hash;
   var search=window.location.search;
   var hasAuthInHash=hash&&(hash.indexOf('access_token')>=0||hash.indexOf('type=magiclink')>=0);
-  var hasCodeInQuery=search&&search.indexOf('code=')>=0;
+  var hasCodeInQuery=search&&search.indexOf('code=')>=0&&search.indexOf('error_code=')<0;
+  var hasErrorInQuery=search&&search.indexOf('error=')>=0;
 
   // 強制彈窗：不管在哪個頁面都看得到
-  alert('['+LINE_LOGIN_BUILD+'] handleAuthCallback\n'
-    +'URL: '+window.location.href.substring(0,100)+'\n'
-    +'hash有token: '+(hasAuthInHash?'是':'否')+'\n'
-    +'query有code: '+(hasCodeInQuery?'是':'否'));
+  // 處理 Supabase 回傳的錯誤（如 OAuth state expired）
+  if(hasErrorInQuery){
+    var errParams=new URLSearchParams(search);
+    var errMsg=errParams.get('error_description')||errParams.get('error')||'未知錯誤';
+    var errCode=errParams.get('error_code')||'';
+    _cp('CP-AUTH-ERR','Supabase 回傳認證錯誤',{error:errMsg,code:errCode});
+    alert('[認證錯誤] '+errCode+'\n'+decodeURIComponent(errMsg.replace(/\+/g,' ')));
+    cleanupAuthUrl();
+    updateSupabaseStatus('LINE 登入失敗：'+decodeURIComponent(errMsg.replace(/\+/g,' ')),true);
+    showCheckpointPanel();
+    return;
+  }
 
   if(!hasAuthInHash&&!hasCodeInQuery)return;
 
