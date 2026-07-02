@@ -814,7 +814,7 @@ var DEFAULT_SETTINGS={
 };
 
 // ===== LINE Login 流程檢查哨系統 =====
-var LINE_LOGIN_BUILD='v2026-07-02d';
+var LINE_LOGIN_BUILD='v2026-07-02e';
 var _lineCP={log:[],ss:[]};
 function _cp(id,msg,data){
   var entry={id:id,msg:msg,t:new Date().toLocaleTimeString(),data:data||null};
@@ -2252,21 +2252,34 @@ function handleAuthCallback(){
     var exchangeTimer=setTimeout(function(){
       if(!exchangeDone){
         _cp('CP11-TIMEOUT','exchangeCodeForSession 超過 10 秒無回應');
+        alert('[CP11-TIMEOUT] exchange 超過 10 秒無回應');
         showCheckpointPanel();
       }
     },10000);
 
-    _cp('CP10','exchangeCodeForSession 呼叫中...');
+    // 檢查 localStorage 中的 code_verifier 狀態
+    var cvCheck=[];
+    for(var ci=0;ci<localStorage.length;ci++){
+      var ck=localStorage.key(ci);
+      if(ck&&ck.indexOf('verifier')>=0){
+        cvCheck.push(ck+'='+String(localStorage.getItem(ck)).substring(0,12)+'...');
+      }
+    }
+    _cp('CP10','exchangeCodeForSession 呼叫中...',{cvInStorage:cvCheck.join(';')||'(無)'});
+    alert('[CP10] 即將 exchange\ncode: '+code.substring(0,12)+'...\ncv in storage: '+(cvCheck.join('; ')||'(無)'));
+
     client.auth.exchangeCodeForSession(code).then(function(result){
       exchangeDone=true;clearTimeout(exchangeTimer);
       cleanupAuthUrl();
       if(result.error){
         _cp('CP11-FAIL','exchange 回傳錯誤',{err:result.error.message||'unknown'});
+        alert('[CP11-FAIL] exchange 失敗\n'+result.error.message);
         showCheckpointPanel();
       }else{
         _cp('CP11-OK','exchange 成功！',{
           userId:result.data&&result.data.user&&result.data.user.id?result.data.user.id.substring(0,8):'?'
         });
+        alert('[CP11-OK] exchange 成功！登入完成');
         initCloudMode().then(function(ok){
           if(ok)refreshSupabaseStatus();
           else updateSupabaseStatus('登入成功但無法載入專案。',true);
@@ -2275,6 +2288,7 @@ function handleAuthCallback(){
     }).catch(function(e){
       exchangeDone=true;clearTimeout(exchangeTimer);
       _cp('CP11-CATCH','exchange 拋出例外',{err:e.message||'catch error'});
+      alert('[CP11-CATCH] exchange 例外\n'+e.message);
       showCheckpointPanel();
     });
   }
