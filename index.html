@@ -2443,7 +2443,10 @@ function goTo(id){
   window.scrollTo(0,0);
   if(id==='screen-home'){updateWeeklyStats();}
   if(id==='screen-step5'){updateLogList();}
-  if(id==='screen-history'){updateHistoryList();}
+  if(id==='screen-history'){
+    updateHistoryList();
+    updateHistoryListFromCloud();
+  }
   if(id==='screen-preview'){renderPreview();}
 }
 
@@ -2619,6 +2622,11 @@ function saveLogRecords(records){
   saveToStore('logs',records);
   // 施工紀錄變更時也排程雲端同步
   scheduleCloudSync();
+}
+function cacheCloudLogsForDate(dateStr,logs){
+  var records=loadLogRecords().filter(function(r){return r.date!==dateStr});
+  (logs||[]).forEach(function(log){records.push(log)});
+  saveToStore('logs',records);
 }
 
 function openLogForm(editId){
@@ -2846,6 +2854,12 @@ function updateHistoryList(){
   }
 }
 
+function renderHistoryMessage(container,title,detail){
+  if(!container)return;
+  container.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:15px">'+
+    escHtml(title)+'<br><span style="font-size:13px">'+escHtml(detail||'')+'</span></div>';
+}
+
 function renderHistoryCard(container,ds,rpt,source){
   var dow=getDayOfWeek(ds);
   var crewTotal=0;
@@ -2889,9 +2903,20 @@ async function updateHistoryListFromCloud(){
   if(!isCloudReady())return;
   var container=document.getElementById('history-list-container');
   if(!container)return;
+  var hadLocalHistory=container.querySelectorAll('.card').length>0;
+  if(!hadLocalHistory){
+    renderHistoryMessage(container,'正在讀取雲端歷史日報...','登入後會自動載入最近 30 筆日報');
+  }
   try{
     var cloudReports=await cloudListReports(30);
-    if(!cloudReports||cloudReports.length===0)return;
+    if(!cloudReports){
+      if(!hadLocalHistory)renderHistoryMessage(container,'雲端歷史日報讀取失敗','請確認登入狀態與網路連線後再試一次');
+      return;
+    }
+    if(cloudReports.length===0){
+      if(!hadLocalHistory)renderHistoryMessage(container,'尚無歷史日報紀錄','雲端目前也沒有過去日報');
+      return;
+    }
     container.innerHTML='';
     var found=0;
     for(var i=0;i<cloudReports.length;i++){
@@ -2933,10 +2958,11 @@ async function updateHistoryListFromCloud(){
       }
     }
     if(found===0){
-      container.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:15px">尚無歷史日報紀錄<br><span style="font-size:13px">填寫日報後，紀錄會出現在這裡</span></div>';
+      renderHistoryMessage(container,'尚無歷史日報紀錄','雲端目前只有今日日報，尚無過去日報');
     }
   }catch(e){
     console.warn('雲端歷史日報載入失敗：',e);
+    if(!hadLocalHistory)renderHistoryMessage(container,'雲端歷史日報讀取失敗','請確認登入狀態與網路連線後再試一次');
   }
 }
 
@@ -2944,13 +2970,21 @@ function viewHistoryDetail(dateStr){
   var rpt=loadReport(dateStr);
   // 本機沒有資料時嘗試從雲端讀取
   if(!rpt&&isCloudReady()){
-    cloudLoadReport(dateStr).then(function(cloudData){
-      if(cloudData){
-        saveReport(dateStr,cloudData); // 快取到本機
-        showHistoryDetail(dateStr,cloudData);
+    var titleEl=document.getElementById('history-detail-title');
+    if(titleEl)titleEl.textContent=dateStr+'（'+getDayOfWeek(dateStr)+'）';
+    var content=document.getElementById('history-detail-content');
+    if(content)content.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:15px">正在讀取雲端日報...<br><span style="font-size:13px">包含日報明細與施工紀錄</span></div>';
+    goTo('screen-history-detail');
+    cloudLoadReportWithItems(dateStr).then(function(cloudData){
+      if(cloudData&&cloudData.report){
+        saveReport(dateStr,cloudData.report); // 快取到本機
+        cacheCloudLogsForDate(dateStr,cloudData.logs||[]);
+        showHistoryDetail(dateStr,cloudData.report);
       }else{
-        goTo('screen-history');
+        if(content)content.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:15px">雲端找不到這份日報<br><span style="font-size:13px">請回歷史列表重新整理</span></div>';
       }
+    }).catch(function(e){
+      if(content)content.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:15px">雲端日報讀取失敗<br><span style="font-size:13px">'+escHtml(e.message||'請稍後再試')+'</span></div>';
     });
     return;
   }
