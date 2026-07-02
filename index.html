@@ -825,7 +825,23 @@ function getSupabaseClient(){
   if(!window.supabase||typeof window.supabase.createClient!=='function')return null;
   // Source: https://supabase.com/docs/reference/javascript/initializing
   supabaseClient=window.supabase.createClient(SUPABASE_CONFIG.url,SUPABASE_CONFIG.publishableKey,{
-    auth:{persistSession:true,autoRefreshToken:true}
+    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'implicit'}
+  });
+  // 監聽 auth 狀態變化（處理 OAuth redirect 回來的情況，含手機 LINE 登入）
+  supabaseClient.auth.onAuthStateChange(function(event,session){
+    if(event==='SIGNED_IN'&&session){
+      initCloudMode().then(function(ok){
+        if(ok)refreshSupabaseStatus();
+      });
+    }
+    if(event==='SIGNED_OUT'){
+      cloudState.enabled=false;
+      cloudState.userId=null;
+      cloudState.projectId=null;
+      cloudState.projects=[];
+      setCloudBadge('local');
+      refreshSupabaseStatus();
+    }
   });
   return supabaseClient;
 }
@@ -2035,18 +2051,24 @@ function initApp(){
 // Supabase auth callback 處理（從 email magic link 回來時）
 function handleAuthCallback(){
   var hash=window.location.hash;
-  if(hash&&(hash.indexOf('access_token')>=0||hash.indexOf('type=magiclink')>=0)){
-    // Supabase client 會自動從 hash 處理 session，等它處理完再重新初始化
+  var search=window.location.search;
+  var hasAuthInHash=hash&&(hash.indexOf('access_token')>=0||hash.indexOf('type=magiclink')>=0);
+  var hasCodeInQuery=search&&search.indexOf('code=')>=0;
+  if(hasAuthInHash||hasCodeInQuery){
     var client=getSupabaseClient();
     if(client){
-      client.auth.getSession().then(function(){
-        // 清除 hash 避免重複處理
+      // 給 Supabase client 時間處理 URL 中的 token 或 code
+      client.auth.getSession().then(function(result){
+        // 清除 URL 中的認證參數
         if(window.history&&window.history.replaceState){
-          window.history.replaceState(null,'',window.location.pathname+window.location.search);
+          window.history.replaceState(null,'',window.location.pathname);
         }
-        initCloudMode().then(function(ok){
-          if(ok)refreshSupabaseStatus();
-        });
+        // onAuthStateChange 會處理後續初始化，這裡作為備用
+        if(result&&result.data&&result.data.session){
+          initCloudMode().then(function(ok){
+            if(ok)refreshSupabaseStatus();
+          });
+        }
       });
     }
   }
