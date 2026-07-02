@@ -916,11 +916,26 @@ async function signInWithLine(){
   }
   try{
     updateSupabaseStatus('正在跳轉到 LINE 登入...',false);
+    // 用 skipBrowserRedirect 取得 auth URL，手動控制跳轉行為
     var result=await client.auth.signInWithOAuth({
       provider:'custom:line',
-      options:{redirectTo:window.location.href.split('#')[0].split('?')[0]}
+      options:{
+        redirectTo:window.location.href.split('#')[0].split('?')[0],
+        skipBrowserRedirect:true
+      }
     });
     if(result.error)throw result.error;
+    var authUrl=result.data&&result.data.url;
+    if(!authUrl)throw new Error('無法取得登入網址');
+    // 手機上：先嘗試用 window.location.replace 跳轉（比 href 更容易觸發 Universal Links）
+    // iOS PWA standalone 模式：用 window.open 打開 Safari（PWA 內部不支援 Universal Links）
+    var isStandalone=window.navigator.standalone||window.matchMedia('(display-mode: standalone)').matches;
+    if(isStandalone){
+      // PWA 模式：用 Safari 開啟，才能觸發 LINE App
+      window.open(authUrl,'_blank');
+    }else{
+      window.location.replace(authUrl);
+    }
   }catch(e){
     updateSupabaseStatus('LINE 登入失敗：'+(e.message||'未知錯誤'),true);
   }
@@ -2054,13 +2069,19 @@ function initApp(){
 }
 
 // Supabase auth callback 處理（OAuth redirect / magic link 回來時）
+var authDiag={flow:'unknown',codeExchangeError:null};
 function handleAuthCallback(){
   var hash=window.location.hash;
   var search=window.location.search;
   var hasAuthInHash=hash&&(hash.indexOf('access_token')>=0||hash.indexOf('type=magiclink')>=0);
   var hasCodeInQuery=search&&search.indexOf('code=')>=0;
+  if(hasAuthInHash){
+    authDiag.flow='implicit（hash 帶 access_token）';
+  }else if(hasCodeInQuery){
+    authDiag.flow='PKCE（query 帶 code）';
+  }
   if(hasAuthInHash||hasCodeInQuery){
-    updateSupabaseStatus('正在處理登入回傳...',false);
+    updateSupabaseStatus('正在處理登入回傳（'+authDiag.flow+'）...',false);
     retryGetSession(0,hasCodeInQuery);
   }
 }
@@ -2070,6 +2091,8 @@ function retryGetSession(attempt,hasCode){
   if(!client){
     if(attempt<maxAttempts){
       setTimeout(function(){retryGetSession(attempt+1,hasCode)},500);
+    }else{
+      showAuthTimeout();
     }
     return;
   }
@@ -2080,7 +2103,7 @@ function retryGetSession(attempt,hasCode){
     if(code){
       client.auth.exchangeCodeForSession(code).then(function(result){
         if(result.error){
-          // exchangeCodeForSession 失敗（可能 code_verifier 遺失），回退到 getSession
+          authDiag.codeExchangeError=result.error.message||'unknown error';
           retryGetSession(1,false);
         }else{
           cleanupAuthUrl();
@@ -2088,7 +2111,8 @@ function retryGetSession(attempt,hasCode){
             if(ok)refreshSupabaseStatus();
           });
         }
-      }).catch(function(){
+      }).catch(function(e){
+        authDiag.codeExchangeError=e.message||'catch error';
         retryGetSession(1,false);
       });
       return;
@@ -2102,13 +2126,31 @@ function retryGetSession(attempt,hasCode){
         if(ok)refreshSupabaseStatus();
       });
     }else if(attempt<maxAttempts){
+      updateSupabaseStatus('正在處理登入（第 '+(attempt+1)+'/'+maxAttempts+' 次嘗試）...',false);
       setTimeout(function(){retryGetSession(attempt+1,false)},800);
     }else{
-      updateSupabaseStatus('登入處理逾時，請點擊下方「重新檢查登入狀態」。',true);
-      var recheckBtn=document.getElementById('supabase-recheck-btn');
-      if(recheckBtn)recheckBtn.style.display='block';
+      showAuthTimeout();
     }
   });
+}
+function showAuthTimeout(){
+  var msg='⚠️ 登入處理逾時\n';
+  msg+='認證方式：'+authDiag.flow+'\n';
+  if(authDiag.codeExchangeError){
+    msg+='Code 交換錯誤：'+authDiag.codeExchangeError+'\n';
+  }
+  msg+='請截圖此訊息並回報。';
+  var el=document.getElementById('supabase-status');
+  if(el){
+    el.innerHTML='<div style="text-align:left;font-size:12px;background:#fef3c7;padding:10px;border-radius:8px;margin-bottom:8px">'
+      +'<div style="font-weight:600;color:#92400e;margin-bottom:4px">⚠️ 登入處理逾時</div>'
+      +'<div>認證方式：<b>'+authDiag.flow+'</b></div>'
+      +(authDiag.codeExchangeError?'<div>Code 交換錯誤：<b>'+authDiag.codeExchangeError+'</b></div>':'')
+      +'<div style="margin-top:4px;color:#78716c">請截圖此訊息回報</div>'
+      +'</div>';
+  }
+  var recheckBtn=document.getElementById('supabase-recheck-btn');
+  if(recheckBtn)recheckBtn.style.display='block';
 }
 function cleanupAuthUrl(){
   if(window.history&&window.history.replaceState){
