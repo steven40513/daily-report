@@ -2673,8 +2673,11 @@ function addCrewEntry(catId,subtype){
     location:'',
     workToday:'',
     contractor:'',
-    am:false,
-    pm:false,
+    // 時段（上午/下午）目前還沒有卡片 UI 可以填，預設視為「全天」，
+    // 以符合 Supabase work_logs 既有的 check (period_am or period_pm) 規則。
+    // 下一輪加上時段 UI 時，使用者可以自行調整成只勾上午或只勾下午。
+    am:true,
+    pm:true,
     hours:0,
     workTomorrow:'',
     isSubcontractor:false
