@@ -814,7 +814,7 @@ var DEFAULT_SETTINGS={
 };
 
 // ===== LINE Login 流程檢查哨系統 =====
-var LINE_LOGIN_BUILD='v2026-07-02b';
+var LINE_LOGIN_BUILD='v2026-07-02c';
 var _lineCP={log:[],ss:[]};
 function _cp(id,msg,data){
   var entry={id:id,msg:msg,t:new Date().toLocaleTimeString(),data:data||null};
@@ -887,7 +887,7 @@ function getSupabaseClient(){
   if(!window.supabase||typeof window.supabase.createClient!=='function')return null;
   // Source: https://supabase.com/docs/reference/javascript/initializing
   supabaseClient=window.supabase.createClient(SUPABASE_CONFIG.url,SUPABASE_CONFIG.publishableKey,{
-    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}
+    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,flowType:'pkce'}
   });
   // 監聽 auth 狀態變化（處理 OAuth redirect 回來的情況，含手機 LINE 登入）
   supabaseClient.auth.onAuthStateChange(function(event,session){
