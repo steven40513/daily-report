@@ -814,7 +814,7 @@ var DEFAULT_SETTINGS={
 };
 
 // ===== LINE Login 流程檢查哨系統 =====
-var LINE_LOGIN_BUILD='v2026-07-02a';
+var LINE_LOGIN_BUILD='v2026-07-02b';
 var _lineCP={log:[],ss:[]};
 function _cp(id,msg,data){
   var entry={id:id,msg:msg,t:new Date().toLocaleTimeString(),data:data||null};
@@ -938,7 +938,7 @@ async function refreshSupabaseStatus(){
       if(recheckBtn)recheckBtn.style.display='none';
       if(loginArea)loginArea.style.display='none';
     }else{
-      updateSupabaseStatus('尚未登入，現在使用本機保存。',false);
+      updateSupabaseStatus('尚未登入，現在使用本機保存。('+LINE_LOGIN_BUILD+')',false);
       if(logoutBtn)logoutBtn.style.display='none';
       if(recheckBtn)recheckBtn.style.display='block';
       if(loginArea)loginArea.style.display='block';
@@ -992,7 +992,18 @@ async function signInWithLine(){
     if(result.error)throw result.error;
     var authUrl=result.data&&result.data.url;
     if(!authUrl)throw new Error('無法取得登入網址');
-    _cp('CP2','signInWithOAuth 成功，取得 auth URL',{urlLen:authUrl.length});
+    // dump 整個 localStorage，看 Supabase 到底存了什麼
+    var allKeys=[];
+    for(var di=0;di<localStorage.length;di++){
+      var dk=localStorage.key(di);
+      var dv=localStorage.getItem(dk);
+      allKeys.push(dk+'=('+String(dv).length+'字元)'+String(dv).substring(0,20));
+    }
+    _cp('CP2','signInWithOAuth 成功',{
+      urlLen:authUrl.length,
+      lsKeyCount:localStorage.length,
+      allKeys:allKeys.join(' | ')
+    });
 
     // === PKCE code_verifier 備份 ===
     var cv=null;var cvFoundKey=null;
@@ -1004,7 +1015,7 @@ async function signInWithLine(){
     if(!cv){
       for(var si=0;si<localStorage.length;si++){
         var k=localStorage.key(si);
-        if(k&&k.indexOf('code-verifier')>=0){
+        if(k&&k.indexOf('code-verifier')>=0||k&&k.indexOf('verifier')>=0||k&&k.indexOf('pkce')>=0){
           cv=localStorage.getItem(k);cvFoundKey=k;break;
         }
       }
@@ -1031,6 +1042,11 @@ async function signInWithLine(){
 
     var isStandalone=window.navigator.standalone||window.matchMedia('(display-mode: standalone)').matches;
     _cp('CP5','即將跳轉',{standalone:isStandalone,target:authUrl.substring(0,80)});
+
+    // 跳轉前顯示 checkpoint，讓使用者有機會截圖
+    showCheckpointPanel();
+    // 延遲 1.5 秒再跳轉，確保 checkpoint 寫入 storage
+    await new Promise(function(r){setTimeout(r,1500);});
 
     if(isStandalone){
       window.open(authUrl,'_blank');
