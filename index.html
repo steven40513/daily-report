@@ -236,6 +236,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
       </div>
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="btn btn-outline" id="supabase-logout-btn" onclick="doSupabaseLogout()" style="flex:1;display:none">登出</button>
+        <button class="btn btn-outline" id="supabase-recheck-btn" onclick="recheckAuthStatus()" style="flex:1;display:none;font-size:13px">🔄 重新檢查登入狀態</button>
       </div>
       <p style="font-size:12px;color:var(--text3);margin-top:8px">登入後日報自動同步雲端；未登入時使用本機保存。</p>
     </div>
@@ -854,10 +855,12 @@ function updateSupabaseStatus(message,isError){
 async function refreshSupabaseStatus(){
   var client=getSupabaseClient();
   var logoutBtn=document.getElementById('supabase-logout-btn');
+  var recheckBtn=document.getElementById('supabase-recheck-btn');
   var loginArea=document.getElementById('login-buttons-area');
   if(!client){
     updateSupabaseStatus('Supabase 尚未載入，現在使用本機保存。',false);
     if(logoutBtn)logoutBtn.style.display='none';
+    if(recheckBtn)recheckBtn.style.display='none';
     return;
   }
   try{
@@ -871,10 +874,12 @@ async function refreshSupabaseStatus(){
       var providerLabel=provider.indexOf('line')>=0?'LINE':'Email';
       updateSupabaseStatus('已登入：'+displayName+'（'+providerLabel+'）'+(cloudState.enabled?'　☁️ 雲端同步啟用中':''),false);
       if(logoutBtn)logoutBtn.style.display='block';
+      if(recheckBtn)recheckBtn.style.display='none';
       if(loginArea)loginArea.style.display='none';
     }else{
       updateSupabaseStatus('尚未登入，現在使用本機保存。',false);
       if(logoutBtn)logoutBtn.style.display='none';
+      if(recheckBtn)recheckBtn.style.display='block';
       if(loginArea)loginArea.style.display='block';
     }
   }catch(e){
@@ -2048,23 +2053,76 @@ function initApp(){
   });
 }
 
-// Supabase auth callback 處理（從 email magic link 回來時）
+// Supabase auth callback 處理（OAuth redirect / magic link 回來時）
 function handleAuthCallback(){
   var hash=window.location.hash;
   var search=window.location.search;
   var hasAuthInHash=hash&&(hash.indexOf('access_token')>=0||hash.indexOf('type=magiclink')>=0);
   var hasCodeInQuery=search&&search.indexOf('code=')>=0;
   if(hasAuthInHash||hasCodeInQuery){
+    updateSupabaseStatus('正在處理登入回傳...',false);
+    retryGetSession(0,hasCodeInQuery);
+  }
+}
+function retryGetSession(attempt,hasCode){
+  var maxAttempts=6;
+  var client=getSupabaseClient();
+  if(!client){
+    if(attempt<maxAttempts){
+      setTimeout(function(){retryGetSession(attempt+1,hasCode)},500);
+    }
+    return;
+  }
+  // 如果 URL 有 code 參數，嘗試用 exchangeCodeForSession 處理 PKCE
+  if(hasCode&&attempt===0){
+    var params=new URLSearchParams(window.location.search);
+    var code=params.get('code');
+    if(code){
+      client.auth.exchangeCodeForSession(code).then(function(result){
+        if(result.error){
+          // exchangeCodeForSession 失敗（可能 code_verifier 遺失），回退到 getSession
+          retryGetSession(1,false);
+        }else{
+          cleanupAuthUrl();
+          initCloudMode().then(function(ok){
+            if(ok)refreshSupabaseStatus();
+          });
+        }
+      }).catch(function(){
+        retryGetSession(1,false);
+      });
+      return;
+    }
+  }
+  client.auth.getSession().then(function(result){
+    var session=result&&result.data&&result.data.session;
+    if(session){
+      cleanupAuthUrl();
+      initCloudMode().then(function(ok){
+        if(ok)refreshSupabaseStatus();
+      });
+    }else if(attempt<maxAttempts){
+      setTimeout(function(){retryGetSession(attempt+1,false)},800);
+    }else{
+      updateSupabaseStatus('登入處理逾時，請點擊下方「重新檢查登入狀態」。',true);
+      var recheckBtn=document.getElementById('supabase-recheck-btn');
+      if(recheckBtn)recheckBtn.style.display='block';
+    }
+  });
+}
+function cleanupAuthUrl(){
+  if(window.history&&window.history.replaceState){
+    window.history.replaceState(null,'',window.location.pathname);
+  }
+}
+// 頁面重新可見時（從 LINE App 切回瀏覽器），重新檢查登入狀態
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible'&&!cloudState.enabled){
     var client=getSupabaseClient();
     if(client){
-      // 給 Supabase client 時間處理 URL 中的 token 或 code
       client.auth.getSession().then(function(result){
-        // 清除 URL 中的認證參數
-        if(window.history&&window.history.replaceState){
-          window.history.replaceState(null,'',window.location.pathname);
-        }
-        // onAuthStateChange 會處理後續初始化，這裡作為備用
-        if(result&&result.data&&result.data.session){
+        var session=result&&result.data&&result.data.session;
+        if(session){
           initCloudMode().then(function(ok){
             if(ok)refreshSupabaseStatus();
           });
@@ -2072,7 +2130,60 @@ function handleAuthCallback(){
       });
     }
   }
+});
+// 手動重新檢查登入狀態（給用戶在手機上用的）
+function recheckAuthStatus(){
+  updateSupabaseStatus('重新檢查中...',false);
+  var client=getSupabaseClient();
+  if(!client){
+    updateSupabaseStatus('Supabase 尚未載入，請重新整理頁面。',true);
+    return;
+  }
+  client.auth.getSession().then(function(result){
+    var session=result&&result.data&&result.data.session;
+    if(session){
+      initCloudMode().then(function(ok){
+        if(ok)refreshSupabaseStatus();
+        else updateSupabaseStatus('登入成功但無法載入專案，請聯繫管理員。',true);
+      });
+    }else{
+      // 嘗試從 URL 再處理一次
+      var hash=window.location.hash;
+      var search=window.location.search;
+      var debugInfo='URL hash: '+(hash?hash.substring(0,50)+'...':'無')+' | query: '+(search?search.substring(0,50)+'...':'無');
+      updateSupabaseStatus('尚未偵測到登入 session。'+debugInfo,true);
+    }
+  });
 }
+window.recheckAuthStatus=recheckAuthStatus;
+// 偵測 LINE 內建瀏覽器：如果是從 LINE 打開且已登入，提示使用者在一般瀏覽器開啟
+function checkLineInAppBrowser(){
+  var ua=navigator.userAgent||'';
+  if(ua.indexOf('Line/')>=0||ua.indexOf('LIFF')>=0){
+    var client=getSupabaseClient();
+    if(client){
+      client.auth.getSession().then(function(result){
+        var session=result&&result.data&&result.data.session;
+        if(session){
+          // 在 LINE 內建瀏覽器且已登入：提示用一般瀏覽器開啟
+          var el=document.getElementById('supabase-status');
+          if(el){
+            el.innerHTML='✅ LINE 登入成功！<br><span style="font-size:12px;color:#d97706">您目前在 LINE 內建瀏覽器，請用 Safari 或 Chrome 開啟此頁面以正常使用。</span><br><button onclick="copyAppUrl()" style="margin-top:6px;padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:13px">📋 複製網址</button>';
+          }
+        }
+      });
+    }
+  }
+}
+function copyAppUrl(){
+  var url=window.location.href.split('#')[0].split('?')[0];
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(function(){alert('已複製！請開啟 Safari 或 Chrome 貼上網址。')});
+  }else{
+    prompt('請複製此網址並在瀏覽器開啟：',url);
+  }
+}
+window.copyAppUrl=copyAppUrl;
 
 // ===== 導航（含自動存檔）=====
 var stepScreens=['screen-step1','screen-step2','screen-step3','screen-step4','screen-step5','screen-preview'];
@@ -2101,6 +2212,8 @@ function goTo(id){
 document.addEventListener('DOMContentLoaded',function(){
   initApp();
   handleAuthCallback();
+  // 延遲檢查：是否在 LINE 內建瀏覽器中
+  setTimeout(checkLineInAppBrowser,1500);
 });
 
 function selectWeather(el){
