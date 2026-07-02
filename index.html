@@ -813,7 +813,8 @@ var DEFAULT_SETTINGS={
   }
 };
 
-// ===== LINE Login 流程檢查哨系統 =====
+// ===== LINE Login 背景診斷與 PKCE 補救 =====
+var LINE_LOGIN_DEBUG=false;
 var LINE_LOGIN_BUILD='v2026-07-02g';
 var _lineCP={log:[],ss:[]};
 function _cp(id,msg,data){
@@ -938,7 +939,7 @@ async function refreshSupabaseStatus(){
       if(recheckBtn)recheckBtn.style.display='none';
       if(loginArea)loginArea.style.display='none';
     }else{
-      updateSupabaseStatus('尚未登入，現在使用本機保存。('+LINE_LOGIN_BUILD+')',false);
+      updateSupabaseStatus('尚未登入，現在使用本機保存。',false);
       if(logoutBtn)logoutBtn.style.display='none';
       if(recheckBtn)recheckBtn.style.display='block';
       if(loginArea)loginArea.style.display='block';
@@ -1241,8 +1242,9 @@ async function syncCurrentReportToSupabase(){
     var user=userResult.data&&userResult.data.user;
     if(!user)throw new Error('尚未登入，請先用 Email 登入。');
     var project=await getFirstSupabaseProject(client);
-    autoSave();
     var data=collectReportData();
+    // Avoid calling autoSave() here because it can schedule another cloud sync.
+    saveReport(currentReportDate,data);
     var reportPayload={
       project_id:project.id,
       report_date:currentReportDate,
@@ -2189,17 +2191,15 @@ function handleAuthCallback(){
   var hasCodeInQuery=search&&search.indexOf('code=')>=0&&search.indexOf('error_code=')<0;
   var hasErrorInQuery=search&&search.indexOf('error=')>=0;
 
-  // 強制彈窗：不管在哪個頁面都看得到
   // 處理 Supabase 回傳的錯誤（如 OAuth state expired）
   if(hasErrorInQuery){
     var errParams=new URLSearchParams(search);
     var errMsg=errParams.get('error_description')||errParams.get('error')||'未知錯誤';
     var errCode=errParams.get('error_code')||'';
     _cp('CP-AUTH-ERR','Supabase 回傳認證錯誤',{error:errMsg,code:errCode});
-    alert('[認證錯誤] '+errCode+'\n'+decodeURIComponent(errMsg.replace(/\+/g,' ')));
     cleanupAuthUrl();
     updateSupabaseStatus('LINE 登入失敗：'+decodeURIComponent(errMsg.replace(/\+/g,' ')),true);
-    showCheckpointPanel();
+    if(LINE_LOGIN_DEBUG)showCheckpointPanel();
     return;
   }
 
@@ -2214,15 +2214,13 @@ function handleAuthCallback(){
       supabaseLoaded:!!window.supabase,
       createClientExists:!!(window.supabase&&window.supabase.createClient)
     });
-    alert('[CP8-ERR] Supabase client 為 null!\nsupabase loaded: '+!!window.supabase);
     updateSupabaseStatus('Supabase 尚未載入，請重新整理頁面。',true);
-    showCheckpointPanel();
+    if(LINE_LOGIN_DEBUG)showCheckpointPanel();
     return;
   }
   _cp('CP8a','Supabase client 就緒',{
     hasExchange:typeof client.auth.exchangeCodeForSession
   });
-  alert('[CP8a] Supabase client OK, exchange type: '+typeof client.auth.exchangeCodeForSession);
 
   if(hasAuthInHash){
     try{
@@ -2247,12 +2245,11 @@ function handleAuthCallback(){
     var code=params.get('code');
     if(!code){
       _cp('CP9-ERR','URL 有 code= 但解析為空',{search:search.substring(0,120)});
-      alert('[CP9-ERR] code 解析為空!\nsearch: '+search.substring(0,120));
-      showCheckpointPanel();
+      updateSupabaseStatus('登入回傳資料不完整，請重新登入。',true);
+      if(LINE_LOGIN_DEBUG)showCheckpointPanel();
       return;
     }
     _cp('CP9','準備 exchangeCodeForSession',{code8:code.substring(0,8)});
-    alert('[CP9] code 取得成功: '+code.substring(0,12)+'...');
     updateSupabaseStatus('正在交換 code 取得 session...',false);
 
     // 10 秒 timeout 兜底：如果 promise 掛住不回應
@@ -2260,8 +2257,8 @@ function handleAuthCallback(){
     var exchangeTimer=setTimeout(function(){
       if(!exchangeDone){
         _cp('CP11-TIMEOUT','exchangeCodeForSession 超過 10 秒無回應');
-        alert('[CP11-TIMEOUT] exchange 超過 10 秒無回應');
-        showCheckpointPanel();
+        updateSupabaseStatus('登入處理逾時，請重新整理頁面再試一次。',true);
+        if(LINE_LOGIN_DEBUG)showCheckpointPanel();
       }
     },10000);
 
@@ -2274,20 +2271,18 @@ function handleAuthCallback(){
       }
     }
     _cp('CP10','exchangeCodeForSession 呼叫中...',{cvInStorage:cvCheck.join(';')||'(無)'});
-    alert('[CP10] 即將 exchange\ncode: '+code.substring(0,12)+'...\ncv in storage: '+(cvCheck.join('; ')||'(無)'));
 
     client.auth.exchangeCodeForSession(code).then(function(result){
       exchangeDone=true;clearTimeout(exchangeTimer);
       cleanupAuthUrl();
       if(result.error){
         _cp('CP11-FAIL','exchange 回傳錯誤',{err:result.error.message||'unknown'});
-        alert('[CP11-FAIL] exchange 失敗\n'+result.error.message);
-        showCheckpointPanel();
+        updateSupabaseStatus('登入失敗：'+(result.error.message||'無法交換登入資料'),true);
+        if(LINE_LOGIN_DEBUG)showCheckpointPanel();
       }else{
         _cp('CP11-OK','exchange 成功！',{
           userId:result.data&&result.data.user&&result.data.user.id?result.data.user.id.substring(0,8):'?'
         });
-        alert('[CP11-OK] exchange 成功！登入完成');
         initCloudMode().then(function(ok){
           if(ok)refreshSupabaseStatus();
           else updateSupabaseStatus('登入成功但無法載入專案。',true);
@@ -2296,8 +2291,8 @@ function handleAuthCallback(){
     }).catch(function(e){
       exchangeDone=true;clearTimeout(exchangeTimer);
       _cp('CP11-CATCH','exchange 拋出例外',{err:e.message||'catch error'});
-      alert('[CP11-CATCH] exchange 例外\n'+e.message);
-      showCheckpointPanel();
+      updateSupabaseStatus('登入失敗：'+(e.message||'未知錯誤'),true);
+      if(LINE_LOGIN_DEBUG)showCheckpointPanel();
     });
   }
 }
@@ -2309,7 +2304,7 @@ function showCheckpointPanel(){
   var lsLog=_lineCP.log;
   var ssLog=_lineCP.ss;
   var lines=[];
-  lines.push('<div style="font-weight:700;color:#92400e;margin-bottom:6px;font-size:13px">🔍 LINE Login 診斷 ('+LINE_LOGIN_BUILD+')</div>');
+  lines.push('<div style="font-weight:700;color:#92400e;margin-bottom:6px;font-size:13px">LINE Login 診斷</div>');
   // 主要 checkpoint 紀錄
   if(lsLog.length===0){
     lines.push('<div style="color:#dc2626;font-weight:600">⚠️ localStorage 無任何 checkpoint 紀錄</div>');
