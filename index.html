@@ -814,7 +814,7 @@ var DEFAULT_SETTINGS={
 };
 
 // ===== LINE Login 流程檢查哨系統 =====
-var LINE_LOGIN_BUILD='v2026-07-02c';
+var LINE_LOGIN_BUILD='v2026-07-02d';
 var _lineCP={log:[],ss:[]};
 function _cp(id,msg,data){
   var entry={id:id,msg:msg,t:new Date().toLocaleTimeString(),data:data||null};
@@ -2192,6 +2192,13 @@ function handleAuthCallback(){
   var search=window.location.search;
   var hasAuthInHash=hash&&(hash.indexOf('access_token')>=0||hash.indexOf('type=magiclink')>=0);
   var hasCodeInQuery=search&&search.indexOf('code=')>=0;
+
+  // 強制彈窗：不管在哪個頁面都看得到
+  alert('['+LINE_LOGIN_BUILD+'] handleAuthCallback\n'
+    +'URL: '+window.location.href.substring(0,100)+'\n'
+    +'hash有token: '+(hasAuthInHash?'是':'否')+'\n'
+    +'query有code: '+(hasCodeInQuery?'是':'否'));
+
   if(!hasAuthInHash&&!hasCodeInQuery)return;
 
   var flow=hasAuthInHash?'implicit（hash）':'PKCE（code）';
