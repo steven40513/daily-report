@@ -813,6 +813,67 @@ var DEFAULT_SETTINGS={
   }
 };
 
+// ===== LINE Login 流程檢查哨系統 =====
+var LINE_LOGIN_BUILD='v2026-07-02g';
+var _lineCP={log:[],ss:[]};
+function _cp(id,msg,data){
+  var entry={id:id,msg:msg,t:new Date().toLocaleTimeString(),data:data||null};
+  _lineCP.log.push(entry);
+  // 同時寫 localStorage 和 sessionStorage 做對照
+  try{localStorage.setItem('_lineCP',JSON.stringify(_lineCP.log));}catch(e){}
+  try{sessionStorage.setItem('_lineCP',JSON.stringify(_lineCP.log));}catch(e){}
+}
+// 頁面載入時，先讀取跳轉前留下的 checkpoint（如果有的話）
+(function(){
+  try{
+    var prev=localStorage.getItem('_lineCP');
+    var prevSS=sessionStorage.getItem('_lineCP');
+    if(prev)_lineCP.log=JSON.parse(prev);
+    if(prevSS)_lineCP.ss=JSON.parse(prevSS);
+  }catch(e){}
+})();
+
+// ===== PKCE code_verifier 還原（必須在 Supabase client 建立之前執行）=====
+(function(){
+  try{
+    var params=new URLSearchParams(window.location.search);
+    var hasCode=params.has('code');
+    var cv=params.get('cv');
+    _cp('CP6','Early IIFE 執行',{
+      hasCode:hasCode,
+      hasCv:!!cv,
+      url:window.location.href.substring(0,120)
+    });
+    if(cv){
+      var keys=[
+        'supabase.auth.token-code-verifier',
+        'sb-wadlcguhhmmpizbcbuus-auth-token-code-verifier'
+      ];
+      for(var i=0;i<keys.length;i++){
+        var existing=localStorage.getItem(keys[i]);
+        if(!existing){
+          localStorage.setItem(keys[i],cv);
+          _cp('CP6a','cv 從 URL 還原到 localStorage',{key:keys[i],cv8:cv.substring(0,8)});
+        }else{
+          _cp('CP6b','localStorage 已有 cv（未覆蓋）',{key:keys[i],existing8:existing.substring(0,8),url8:cv.substring(0,8)});
+        }
+      }
+    }
+    // 掃描 localStorage 中所有 code-verifier 相關 key
+    var cvKeys=[];
+    for(var si=0;si<localStorage.length;si++){
+      var k=localStorage.key(si);
+      if(k&&k.indexOf('code-verifier')>=0){
+        cvKeys.push(k+'='+String(localStorage.getItem(k)).substring(0,8)+'...');
+      }
+    }
+    _cp('CP7','localStorage code-verifier 掃描',{
+      found:cvKeys.length,
+      keys:cvKeys.join('; ')||'(無)'
+    });
+  }catch(e){_cp('CP6-ERR','Early IIFE 錯誤',{err:e.message});}
+})();
+
 // ===== localStorage 存取 =====
 var STORE_PREFIX='cdr-';
 var SUPABASE_CONFIG={
@@ -877,7 +938,7 @@ async function refreshSupabaseStatus(){
       if(recheckBtn)recheckBtn.style.display='none';
       if(loginArea)loginArea.style.display='none';
     }else{
-      updateSupabaseStatus('尚未登入，現在使用本機保存。',false);
+      updateSupabaseStatus('尚未登入，現在使用本機保存。('+LINE_LOGIN_BUILD+')',false);
       if(logoutBtn)logoutBtn.style.display='none';
       if(recheckBtn)recheckBtn.style.display='block';
       if(loginArea)loginArea.style.display='block';
@@ -909,32 +970,86 @@ async function doSupabaseLogout(){
 }
 
 async function signInWithLine(){
+  // 清除舊的 checkpoint 紀錄，開始新流程
+  _lineCP.log=[];_lineCP.ss=[];
+  try{localStorage.removeItem('_lineCP');sessionStorage.removeItem('_lineCP');}catch(e){}
+
   var client=getSupabaseClient();
   if(!client){
     alert('Supabase 尚未載入完成，請確認網路連線後重新整理。');
     return;
   }
+  _cp('CP1','signInWithLine 開始',{ua:navigator.userAgent.substring(0,80)});
   try{
     updateSupabaseStatus('正在跳轉到 LINE 登入...',false);
     var result=await client.auth.signInWithOAuth({
       provider:'custom:line',
       options:{
         redirectTo:window.location.href.split('#')[0].split('?')[0],
-        skipBrowserRedirect:true,
-        scopes:'openid email profile'
+        skipBrowserRedirect:true
       }
     });
     if(result.error)throw result.error;
     var authUrl=result.data&&result.data.url;
     if(!authUrl)throw new Error('無法取得登入網址');
+    // dump 整個 localStorage，看 Supabase 到底存了什麼
+    var allKeys=[];
+    for(var di=0;di<localStorage.length;di++){
+      var dk=localStorage.key(di);
+      var dv=localStorage.getItem(dk);
+      allKeys.push(dk+'=('+String(dv).length+'字元)'+String(dv).substring(0,20));
+    }
+    _cp('CP2','signInWithOAuth 成功',{
+      urlLen:authUrl.length,
+      lsKeyCount:localStorage.length,
+      allKeys:allKeys.join(' | ')
+    });
+
+    // === PKCE code_verifier 備份 ===
+    var cv=null;var cvFoundKey=null;
+    var cvKeys=['supabase.auth.token-code-verifier','sb-wadlcguhhmmpizbcbuus-auth-token-code-verifier'];
+    for(var ki=0;ki<cvKeys.length;ki++){
+      var v=localStorage.getItem(cvKeys[ki]);
+      if(v){cv=v;cvFoundKey=cvKeys[ki];break;}
+    }
+    if(!cv){
+      for(var si=0;si<localStorage.length;si++){
+        var k=localStorage.key(si);
+        if(k&&k.indexOf('code-verifier')>=0||k&&k.indexOf('verifier')>=0||k&&k.indexOf('pkce')>=0){
+          cv=localStorage.getItem(k);cvFoundKey=k;break;
+        }
+      }
+    }
+    _cp('CP3','code_verifier 查找',{
+      found:!!cv,
+      key:cvFoundKey||'(無)',
+      cv8:cv?cv.substring(0,8):'N/A'
+    });
+
+    if(cv){
+      try{
+        var urlObj=new URL(authUrl);
+        var redirectTo=urlObj.searchParams.get('redirect_to');
+        if(redirectTo){
+          var rdUrl=new URL(redirectTo);
+          rdUrl.searchParams.set('cv',cv);
+          urlObj.searchParams.set('redirect_to',rdUrl.toString());
+          authUrl=urlObj.toString();
+          _cp('CP4','cv 已嵌入 redirect URL',{cv8:cv.substring(0,8)});
+        }
+      }catch(e2){_cp('CP4-ERR','cv 嵌入失敗',{err:e2.message});}
+    }
 
     var isStandalone=window.navigator.standalone||window.matchMedia('(display-mode: standalone)').matches;
+    _cp('CP5','即將跳轉',{standalone:isStandalone,target:authUrl.substring(0,80)});
+
     if(isStandalone){
       window.open(authUrl,'_blank');
     }else{
       window.location.replace(authUrl);
     }
   }catch(e){
+    _cp('CP-ERR','signInWithLine 錯誤',{err:e.message});
     updateSupabaseStatus('LINE 登入失敗：'+(e.message||'未知錯誤'),true);
   }
 }
@@ -1126,11 +1241,8 @@ async function syncCurrentReportToSupabase(){
     var user=userResult.data&&userResult.data.user;
     if(!user)throw new Error('尚未登入，請先用 Email 登入。');
     var project=await getFirstSupabaseProject(client);
-    // 注意：這裡只存本機、不要呼叫 autoSave()，
-    // 否則 autoSave() 內的 scheduleCloudSync() 會在 3 秒後再排一次同步，
-    // 而那次同步又會再呼叫這個函式 → 造成同步無限迴圈（每 3 秒同步一次，永不停止）。
+    autoSave();
     var data=collectReportData();
-    saveReport(currentReportDate,data);
     var reportPayload={
       project_id:project.id,
       report_date:currentReportDate,
@@ -2077,22 +2189,40 @@ function handleAuthCallback(){
   var hasCodeInQuery=search&&search.indexOf('code=')>=0&&search.indexOf('error_code=')<0;
   var hasErrorInQuery=search&&search.indexOf('error=')>=0;
 
+  // 強制彈窗：不管在哪個頁面都看得到
   // 處理 Supabase 回傳的錯誤（如 OAuth state expired）
   if(hasErrorInQuery){
     var errParams=new URLSearchParams(search);
     var errMsg=errParams.get('error_description')||errParams.get('error')||'未知錯誤';
+    var errCode=errParams.get('error_code')||'';
+    _cp('CP-AUTH-ERR','Supabase 回傳認證錯誤',{error:errMsg,code:errCode});
+    alert('[認證錯誤] '+errCode+'\n'+decodeURIComponent(errMsg.replace(/\+/g,' ')));
     cleanupAuthUrl();
     updateSupabaseStatus('LINE 登入失敗：'+decodeURIComponent(errMsg.replace(/\+/g,' ')),true);
+    showCheckpointPanel();
     return;
   }
 
   if(!hasAuthInHash&&!hasCodeInQuery)return;
 
+  var flow=hasAuthInHash?'implicit（hash）':'PKCE（code）';
+  _cp('CP8','handleAuthCallback 進入',{flow:flow});
+
   var client=getSupabaseClient();
   if(!client){
+    _cp('CP8-ERR','Supabase client 為 null',{
+      supabaseLoaded:!!window.supabase,
+      createClientExists:!!(window.supabase&&window.supabase.createClient)
+    });
+    alert('[CP8-ERR] Supabase client 為 null!\nsupabase loaded: '+!!window.supabase);
     updateSupabaseStatus('Supabase 尚未載入，請重新整理頁面。',true);
+    showCheckpointPanel();
     return;
   }
+  _cp('CP8a','Supabase client 就緒',{
+    hasExchange:typeof client.auth.exchangeCodeForSession
+  });
+  alert('[CP8a] Supabase client OK, exchange type: '+typeof client.auth.exchangeCodeForSession);
 
   if(hasAuthInHash){
     try{
@@ -2116,25 +2246,48 @@ function handleAuthCallback(){
     var params=new URLSearchParams(search);
     var code=params.get('code');
     if(!code){
-      updateSupabaseStatus('登入失敗：無法讀取授權碼，請重新登入。',true);
+      _cp('CP9-ERR','URL 有 code= 但解析為空',{search:search.substring(0,120)});
+      alert('[CP9-ERR] code 解析為空!\nsearch: '+search.substring(0,120));
+      showCheckpointPanel();
       return;
     }
+    _cp('CP9','準備 exchangeCodeForSession',{code8:code.substring(0,8)});
+    alert('[CP9] code 取得成功: '+code.substring(0,12)+'...');
     updateSupabaseStatus('正在交換 code 取得 session...',false);
 
     // 10 秒 timeout 兜底：如果 promise 掛住不回應
     var exchangeDone=false;
     var exchangeTimer=setTimeout(function(){
       if(!exchangeDone){
-        updateSupabaseStatus('登入逾時，請重新整理頁面再試一次。',true);
+        _cp('CP11-TIMEOUT','exchangeCodeForSession 超過 10 秒無回應');
+        alert('[CP11-TIMEOUT] exchange 超過 10 秒無回應');
+        showCheckpointPanel();
       }
     },10000);
+
+    // 檢查 localStorage 中的 code_verifier 狀態
+    var cvCheck=[];
+    for(var ci=0;ci<localStorage.length;ci++){
+      var ck=localStorage.key(ci);
+      if(ck&&ck.indexOf('verifier')>=0){
+        cvCheck.push(ck+'='+String(localStorage.getItem(ck)).substring(0,12)+'...');
+      }
+    }
+    _cp('CP10','exchangeCodeForSession 呼叫中...',{cvInStorage:cvCheck.join(';')||'(無)'});
+    alert('[CP10] 即將 exchange\ncode: '+code.substring(0,12)+'...\ncv in storage: '+(cvCheck.join('; ')||'(無)'));
 
     client.auth.exchangeCodeForSession(code).then(function(result){
       exchangeDone=true;clearTimeout(exchangeTimer);
       cleanupAuthUrl();
       if(result.error){
-        updateSupabaseStatus('登入失敗：'+result.error.message,true);
+        _cp('CP11-FAIL','exchange 回傳錯誤',{err:result.error.message||'unknown'});
+        alert('[CP11-FAIL] exchange 失敗\n'+result.error.message);
+        showCheckpointPanel();
       }else{
+        _cp('CP11-OK','exchange 成功！',{
+          userId:result.data&&result.data.user&&result.data.user.id?result.data.user.id.substring(0,8):'?'
+        });
+        alert('[CP11-OK] exchange 成功！登入完成');
         initCloudMode().then(function(ok){
           if(ok)refreshSupabaseStatus();
           else updateSupabaseStatus('登入成功但無法載入專案。',true);
@@ -2142,9 +2295,49 @@ function handleAuthCallback(){
       }
     }).catch(function(e){
       exchangeDone=true;clearTimeout(exchangeTimer);
-      updateSupabaseStatus('登入失敗：'+(e.message||'未知錯誤'),true);
+      _cp('CP11-CATCH','exchange 拋出例外',{err:e.message||'catch error'});
+      alert('[CP11-CATCH] exchange 例外\n'+e.message);
+      showCheckpointPanel();
     });
   }
+}
+// 顯示完整 checkpoint 診斷面板
+function showCheckpointPanel(){
+  var el=document.getElementById('supabase-status');
+  if(!el)return;
+  // 合併 localStorage 和 sessionStorage 的紀錄做對照
+  var lsLog=_lineCP.log;
+  var ssLog=_lineCP.ss;
+  var lines=[];
+  lines.push('<div style="font-weight:700;color:#92400e;margin-bottom:6px;font-size:13px">🔍 LINE Login 診斷 ('+LINE_LOGIN_BUILD+')</div>');
+  // 主要 checkpoint 紀錄
+  if(lsLog.length===0){
+    lines.push('<div style="color:#dc2626;font-weight:600">⚠️ localStorage 無任何 checkpoint 紀錄</div>');
+    lines.push('<div style="color:#dc2626">→ 跳轉過程中 localStorage 可能被清除（Safari ITP?）</div>');
+  }
+  for(var i=0;i<lsLog.length;i++){
+    var cp=lsLog[i];
+    var color=cp.id.indexOf('ERR')>=0||cp.id.indexOf('FAIL')>=0||cp.id.indexOf('TIMEOUT')>=0?'#dc2626':cp.id.indexOf('OK')>=0?'#059669':'#1f2937';
+    var dataStr='';
+    if(cp.data){
+      var parts=[];
+      for(var dk in cp.data){if(cp.data.hasOwnProperty(dk))parts.push(dk+'='+cp.data[dk]);}
+      dataStr=' <span style="color:#6b7280">'+parts.join(', ')+'</span>';
+    }
+    lines.push('<div style="color:'+color+';margin:1px 0"><b>['+cp.id+']</b> '+cp.t+' '+cp.msg+dataStr+'</div>');
+  }
+  // localStorage vs sessionStorage 對照
+  var lsHasPre=lsLog.some(function(c){return c.id.indexOf('CP1')===0||c.id.indexOf('CP2')===0||c.id.indexOf('CP3')===0;});
+  var ssHasPre=ssLog.some(function(c){return c.id.indexOf('CP1')===0||c.id.indexOf('CP2')===0||c.id.indexOf('CP3')===0;});
+  if(!lsHasPre&&ssHasPre){
+    lines.push('<div style="color:#dc2626;font-weight:600;margin-top:4px">⚠️ sessionStorage 有跳轉前紀錄但 localStorage 沒有 → Safari ITP 清除了 localStorage</div>');
+  }else if(!lsHasPre&&!ssHasPre){
+    lines.push('<div style="color:#78716c;margin-top:4px">跳轉前紀錄（CP1-CP5）不在 storage 中（正常：跳轉後 sessionStorage 會重置）</div>');
+  }
+  lines.push('<div style="margin-top:6px;color:#78716c;font-size:10px">請截圖此面板回報</div>');
+  el.innerHTML='<div style="text-align:left;font-size:10px;line-height:1.6;background:#fef3c7;padding:10px;border-radius:8px;margin-bottom:8px;max-height:300px;overflow-y:auto;word-break:break-all">'+lines.join('')+'</div>';
+  var recheckBtn=document.getElementById('supabase-recheck-btn');
+  if(recheckBtn)recheckBtn.style.display='block';
 }
 function cleanupAuthUrl(){
   if(window.history&&window.history.replaceState){
@@ -2183,7 +2376,11 @@ function recheckAuthStatus(){
         else updateSupabaseStatus('登入成功但無法載入專案，請聯繫管理員。',true);
       });
     }else{
-      updateSupabaseStatus('尚未偵測到登入 session，請重新點擊登入。',true);
+      // 嘗試從 URL 再處理一次
+      var hash=window.location.hash;
+      var search=window.location.search;
+      var debugInfo='URL hash: '+(hash?hash.substring(0,50)+'...':'無')+' | query: '+(search?search.substring(0,50)+'...':'無');
+      updateSupabaseStatus('尚未偵測到登入 session。'+debugInfo,true);
     }
   });
 }
