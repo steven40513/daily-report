@@ -125,7 +125,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 
     <div class="card" style="padding:20px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
-        <div style="font-size:18px;font-weight:700" id="home-project-name">高鐵綻</div>
+        <div style="display:flex;align-items:center;gap:6px;cursor:pointer" onclick="showProjectSwitcher()" id="project-name-row">
+          <div style="font-size:18px;font-weight:700" id="home-project-name">高鐵綻</div>
+          <span id="project-switch-icon" style="display:none;font-size:12px;color:var(--text2)">▼</span>
+        </div>
         <span id="cloud-badge" style="font-size:12px;padding:3px 10px;border-radius:12px;background:#f3f4f6;color:#6b7280;font-weight:600">📱 本機模式</span>
       </div>
       <div style="font-size:14px;color:var(--text2);margin-bottom:14px" id="home-company-name">瑋瓏營造股份有限公司</div>
@@ -213,9 +216,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
     <div class="card">
       <div class="card-title">☁️ 雲端連線</div>
       <p id="supabase-status" style="font-size:13px;color:var(--text2);margin-bottom:8px">尚未連線，現在使用本機保存。</p>
-      <div style="display:flex;gap:8px">
-        <input id="supabase-email" type="email" placeholder="Email 測試登入" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px">
-        <button class="btn btn-primary btn-sm" onclick="requestSupabaseOtp()">登入</button>
+      <div id="login-buttons-area">
+        <button onclick="signInWithLine()" style="width:100%;padding:12px 16px;border:none;border-radius:8px;background:#06C755;color:#fff;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:20px">💬</span> LINE 登入
+        </button>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div style="flex:1;height:1px;background:var(--border)"></div>
+          <span style="font-size:12px;color:var(--text3)">或使用 Email</span>
+          <div style="flex:1;height:1px;background:var(--border)"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <input id="supabase-email" type="email" placeholder="Email 測試登入" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px">
+          <button class="btn btn-primary btn-sm" onclick="requestSupabaseOtp()">登入</button>
+        </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="btn btn-green" id="supabase-sync-btn" onclick="syncCurrentReportToSupabase()" style="flex:1">同步今日日報</button>
@@ -825,7 +838,7 @@ function updateSupabaseStatus(message,isError){
 async function refreshSupabaseStatus(){
   var client=getSupabaseClient();
   var logoutBtn=document.getElementById('supabase-logout-btn');
-  var emailInput=document.getElementById('supabase-email');
+  var loginArea=document.getElementById('login-buttons-area');
   if(!client){
     updateSupabaseStatus('Supabase 尚未載入，現在使用本機保存。',false);
     if(logoutBtn)logoutBtn.style.display='none';
@@ -834,15 +847,19 @@ async function refreshSupabaseStatus(){
   try{
     var result=await client.auth.getSession();
     var session=result&&result.data&&result.data.session;
-    var email=session&&session.user?session.user.email:'';
-    if(email){
-      updateSupabaseStatus('已登入：'+email+(cloudState.enabled?'（雲端同步啟用中）':''),false);
+    if(session&&session.user){
+      // 取得顯示名稱：優先用 user_metadata（LINE 會帶 name），其次 email
+      var user=session.user;
+      var displayName=user.user_metadata&&user.user_metadata.name?user.user_metadata.name:user.email||'使用者';
+      var provider=user.app_metadata&&user.app_metadata.provider?user.app_metadata.provider:'';
+      var providerLabel=provider.indexOf('line')>=0?'LINE':'Email';
+      updateSupabaseStatus('已登入：'+displayName+'（'+providerLabel+'）'+(cloudState.enabled?'　☁️ 雲端同步啟用中':''),false);
       if(logoutBtn)logoutBtn.style.display='block';
-      if(emailInput)emailInput.parentElement.style.display='none';
+      if(loginArea)loginArea.style.display='none';
     }else{
       updateSupabaseStatus('尚未登入，現在使用本機保存。',false);
       if(logoutBtn)logoutBtn.style.display='none';
-      if(emailInput)emailInput.parentElement.style.display='flex';
+      if(loginArea)loginArea.style.display='block';
     }
   }catch(e){
     updateSupabaseStatus('無法讀取登入狀態，現在使用本機保存。',true);
@@ -856,15 +873,35 @@ async function doSupabaseLogout(){
     cloudState.enabled=false;
     cloudState.userId=null;
     cloudState.projectId=null;
+    cloudState.projects=[];
     supabaseClient=null;
     setCloudBadge('local');
     updateSupabaseStatus('已登出，現在使用本機保存。',false);
     var logoutBtn=document.getElementById('supabase-logout-btn');
     if(logoutBtn)logoutBtn.style.display='none';
-    var emailInput=document.getElementById('supabase-email');
-    if(emailInput)emailInput.parentElement.style.display='flex';
+    var loginArea=document.getElementById('login-buttons-area');
+    if(loginArea)loginArea.style.display='block';
+    updateProjectSwitcher();
   }catch(e){
     updateSupabaseStatus('登出失敗：'+(e.message||'未知錯誤'),true);
+  }
+}
+
+async function signInWithLine(){
+  var client=getSupabaseClient();
+  if(!client){
+    alert('Supabase 尚未載入完成，請確認網路連線後重新整理。');
+    return;
+  }
+  try{
+    updateSupabaseStatus('正在跳轉到 LINE 登入...',false);
+    var result=await client.auth.signInWithOAuth({
+      provider:'custom:line',
+      options:{redirectTo:window.location.href.split('#')[0].split('?')[0]}
+    });
+    if(result.error)throw result.error;
+  }catch(e){
+    updateSupabaseStatus('LINE 登入失敗：'+(e.message||'未知錯誤'),true);
   }
 }
 
@@ -1166,6 +1203,8 @@ var cloudState={
   enabled:false,       // 是否已登入且可用雲端
   userId:null,         // 登入使用者 ID
   projectId:null,      // 當前專案 ID
+  projectData:null,    // 當前專案資料
+  projects:[],         // 所有可存取的專案列表
   syncing:false,       // 是否正在同步中
   syncTimer:null,      // debounce timer
   lastSyncAt:null      // 最後同步時間
@@ -1190,17 +1229,27 @@ async function initCloudMode(){
       return false;
     }
     cloudState.userId=session.user.id;
-    // 取得專案 ID
-    var projResult=await client.from('projects').select('id,name,contractor_name,start_date,end_date,crew_types,material_catalog,equipment_catalog,signers').limit(1).single();
-    if(projResult.error||!projResult.data){
+    // 取得所有可存取的專案（RLS 自動過濾）
+    var projResult=await client.from('projects').select('id,name,contractor_name,start_date,end_date,crew_types,material_catalog,equipment_catalog,signers').order('name');
+    if(projResult.error||!projResult.data||projResult.data.length===0){
       setCloudBadge('error','找不到專案');
       return false;
     }
-    cloudState.projectId=projResult.data.id;
+    cloudState.projects=projResult.data;
+    // 嘗試恢復上次選擇的專案
+    var savedProjId=localStorage.getItem('cdr-selected-project');
+    var selectedProj=null;
+    if(savedProjId){
+      selectedProj=projResult.data.find(function(p){return p.id===savedProjId});
+    }
+    if(!selectedProj)selectedProj=projResult.data[0];
+    cloudState.projectId=selectedProj.id;
+    cloudState.projectData=selectedProj;
     cloudState.enabled=true;
-    cloudState.projectData=projResult.data;
+    localStorage.setItem('cdr-selected-project',selectedProj.id);
     setCloudBadge('cloud');
     updateSupabaseStatus('已登入，雲端模式啟用中。',false);
+    updateProjectSwitcher();
     return true;
   }catch(e){
     setCloudBadge('error',e.message);
@@ -1224,6 +1273,103 @@ function setCloudBadge(mode,detail){
     el.textContent='📱 本機模式';
     el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#f3f4f6;color:#6b7280;font-weight:600;display:inline-block';
   }
+}
+
+// ===== 多專案切換器 =====
+function updateProjectSwitcher(){
+  // 只有多專案時才顯示切換箭頭
+  var icon=document.getElementById('project-switch-icon');
+  if(icon){
+    icon.style.display=cloudState.projects.length>1?'inline':'none';
+  }
+}
+
+function showProjectSwitcher(){
+  if(!cloudState.enabled||cloudState.projects.length<=1)return;
+  // 移除既有 modal
+  var existing=document.getElementById('project-switcher-modal');
+  if(existing)existing.remove();
+  // 建立 modal
+  var overlay=document.createElement('div');
+  overlay.id='project-switcher-modal';
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding-top:80px';
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove()};
+  var panel=document.createElement('div');
+  panel.style.cssText='background:#fff;border-radius:16px;width:90%;max-width:360px;max-height:70vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2)';
+  panel.innerHTML='<div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;font-size:16px;font-weight:700">切換專案</div>';
+  cloudState.projects.forEach(function(proj){
+    var isActive=proj.id===cloudState.projectId;
+    var row=document.createElement('div');
+    row.style.cssText='padding:14px 20px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f3f4f6'+(isActive?';background:#f0fdf4':'');
+    row.innerHTML='<div><div style="font-size:15px;font-weight:'+(isActive?'700':'500')+'">'+escHtml(proj.name)+'</div><div style="font-size:12px;color:#6b7280;margin-top:2px">'+escHtml(proj.contractor_name||'')+'</div></div>'+(isActive?'<span style="color:#16a34a;font-size:18px">✓</span>':'');
+    if(!isActive){
+      row.onclick=function(){
+        overlay.remove();
+        switchProject(proj.id);
+      };
+    }
+    panel.appendChild(row);
+  });
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+}
+
+async function switchProject(projectId){
+  var proj=cloudState.projects.find(function(p){return p.id===projectId});
+  if(!proj)return;
+  // 先儲存當前日報
+  if(!todayIsBlank){
+    autoSave();
+  }
+  // 切換專案
+  cloudState.projectId=proj.id;
+  cloudState.projectData=proj;
+  localStorage.setItem('cdr-selected-project',proj.id);
+  // 重新載入設定
+  var cloudSettings=cloudSettingsToLocal(proj);
+  saveSettings(cloudSettings);
+  loadSettingsUI();
+  updateHomeInfo();
+  // 重新載入今日日報（空白開始邏輯）
+  var todayData=loadReport(currentReportDate);
+  if(todayData){
+    populateReportUI(todayData);
+    todayIsBlank=false;
+    showCopyBanner(false);
+  }else{
+    var settings=loadSettings();
+    populateReportUI(buildFreshReport(settings));
+    todayIsBlank=true;
+    var prev=findPreviousReport(30);
+    showCopyBanner(!!prev,prev?prev.date:null);
+  }
+  // 從雲端載入此專案的今日日報
+  try{
+    var cloudData=await cloudLoadReport(currentReportDate);
+    if(cloudData){
+      saveReport(currentReportDate,cloudData);
+      populateReportUI(cloudData);
+      todayIsBlank=false;
+      showCopyBanner(false);
+    }else if(todayIsBlank){
+      var cloudPrev=await copyYesterdayFromCloud();
+      if(cloudPrev)showCopyBanner(true,cloudPrev.date);
+    }
+    await updateHistoryListFromCloud();
+  }catch(e){
+    console.warn('切換專案後雲端載入失敗：',e);
+  }
+  updateWeeklyStats();
+  updateLogList();
+  updateHistoryList();
+  // 回到首頁
+  goTo('screen-home');
+  // 提示
+  var tip=document.createElement('div');
+  tip.style.cssText='position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#2563eb;color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,0.2)';
+  tip.textContent='已切換至「'+proj.name+'」';
+  document.body.appendChild(tip);
+  setTimeout(function(){tip.remove()},2500);
 }
 
 // ===== 雲端讀取專案設定 =====
