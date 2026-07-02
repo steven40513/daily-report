@@ -216,6 +216,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
     <div class="card">
       <div class="card-title">☁️ 雲端連線</div>
       <p id="supabase-status" style="font-size:13px;color:var(--text2);margin-bottom:8px">尚未連線，現在使用本機保存。</p>
+      <div id="cloud-sync-detail" style="font-size:12px;color:var(--text3);margin-bottom:8px">同步狀態：本機保存</div>
       <div id="login-buttons-area">
         <button onclick="signInWithLine()" style="width:100%;padding:12px 16px;border:none;border-radius:8px;background:#06C755;color:#fff;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px">
           <span style="font-size:20px">💬</span> LINE 登入
@@ -971,6 +972,8 @@ async function doSupabaseLogout(){
     cloudState.userId=null;
     cloudState.projectId=null;
     cloudState.projects=[];
+    cloudState.lastSyncAt=null;
+    cloudState.lastSyncError=null;
     supabaseClient=null;
     setCloudBadge('local');
     updateSupabaseStatus('已登出，現在使用本機保存。',false);
@@ -1289,10 +1292,15 @@ async function syncCurrentReportToSupabase(){
     if(workLogRows.length>0){
       await client.from('work_logs').insert(workLogRows).then(function(result){assertSupabaseOk(result,'同步施工紀錄失敗')});
     }
-    updateSupabaseStatus('已同步今日日報到雲端：'+new Date().toLocaleTimeString('zh-TW'),false);
+    cloudState.lastSyncAt=new Date();
+    cloudState.lastSyncError=null;
+    setCloudBadge('cloud');
+    updateSupabaseStatus('已同步今日日報到雲端：'+formatSyncTime(cloudState.lastSyncAt),false);
     return reportId;
   }catch(e){
-    updateSupabaseStatus('雲端同步失敗：'+(e.message||'未知錯誤'),true);
+    cloudState.lastSyncError=e.message||'未知錯誤';
+    setCloudBadge('error','同步失敗');
+    updateSupabaseStatus('雲端同步失敗：'+cloudState.lastSyncError,true);
     return null;
   }
 }
@@ -1373,7 +1381,8 @@ var cloudState={
   projects:[],         // 所有可存取的專案列表
   syncing:false,       // 是否正在同步中
   syncTimer:null,      // debounce timer
-  lastSyncAt:null      // 最後同步時間
+  lastSyncAt:null,     // 最後同步時間
+  lastSyncError:null   // 最近同步錯誤
 };
 
 function isCloudReady(){
@@ -1412,12 +1421,14 @@ async function initCloudMode(){
     cloudState.projectId=selectedProj.id;
     cloudState.projectData=selectedProj;
     cloudState.enabled=true;
+    cloudState.lastSyncError=null;
     localStorage.setItem('cdr-selected-project',selectedProj.id);
     setCloudBadge('cloud');
     updateSupabaseStatus('已登入，雲端模式啟用中。',false);
     updateProjectSwitcher();
     return true;
   }catch(e){
+    cloudState.lastSyncError=e.message||'雲端初始化失敗';
     setCloudBadge('error',e.message);
     return false;
   }
@@ -1438,6 +1449,35 @@ function setCloudBadge(mode,detail){
   }else{
     el.textContent='📱 本機模式';
     el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#f3f4f6;color:#6b7280;font-weight:600;display:inline-block';
+  }
+  updateCloudSyncDetail(mode,detail);
+}
+
+function formatSyncTime(date){
+  if(!date)return '';
+  try{return date.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'})}
+  catch(e){return date.toLocaleTimeString('zh-TW')}
+}
+
+function updateCloudSyncDetail(mode,detail){
+  var el=document.getElementById('cloud-sync-detail');
+  if(!el)return;
+  if(mode==='syncing'||cloudState.syncing){
+    el.textContent='同步狀態：同步中...';
+    el.style.color='var(--primary)';
+  }else if(mode==='error'||cloudState.lastSyncError){
+    var errDetail=detail||cloudState.lastSyncError||'';
+    el.textContent='同步狀態：同步失敗' + (errDetail?' - '+errDetail:'');
+    el.style.color='var(--amber)';
+  }else if(cloudState.lastSyncAt){
+    el.textContent='同步狀態：已同步 '+formatSyncTime(cloudState.lastSyncAt);
+    el.style.color='var(--green)';
+  }else if(cloudState.enabled){
+    el.textContent='同步狀態：雲端模式，尚未同步本日資料';
+    el.style.color='var(--text2)';
+  }else{
+    el.textContent='同步狀態：本機保存';
+    el.style.color='var(--text3)';
   }
 }
 
@@ -1644,15 +1684,17 @@ async function doCloudSync(){
   try{
     var reportId=await syncCurrentReportToSupabase();
     if(reportId){
-      cloudState.lastSyncAt=new Date();
+      cloudState.lastSyncError=null;
       setCloudBadge('cloud');
     }else{
-      setCloudBadge('error','同步失敗');
+      setCloudBadge('error',cloudState.lastSyncError||'同步失敗');
     }
   }catch(e){
-    setCloudBadge('error','同步失敗');
+    cloudState.lastSyncError=e.message||'同步失敗';
+    setCloudBadge('error',cloudState.lastSyncError);
   }finally{
     cloudState.syncing=false;
+    updateCloudSyncDetail();
   }
 }
 function saveToStore(key,data){
