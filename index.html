@@ -816,11 +816,13 @@ var DEFAULT_SETTINGS={
 // ===== PKCE code_verifier 還原（必須在 Supabase client 建立之前執行）=====
 // 手機 LINE 登入時，瀏覽器環境會切換（LINE App → 內建瀏覽器），
 // localStorage 中的 code_verifier 會遺失。跳轉前我們把它備份到 URL，回來時在這裡還原。
+var _authDebug={cvRestored:false,cvFromUrl:false,cvInStorage:false,storageKey:null};
 (function(){
   try{
     var params=new URLSearchParams(window.location.search);
     var cv=params.get('cv');
     if(cv){
+      _authDebug.cvFromUrl=true;
       // 嘗試所有可能的 Supabase storageKey 格式
       var keys=[
         'supabase.auth.token-code-verifier',
@@ -829,7 +831,21 @@ var DEFAULT_SETTINGS={
       for(var i=0;i<keys.length;i++){
         if(!localStorage.getItem(keys[i])){
           localStorage.setItem(keys[i],cv);
+          _authDebug.cvRestored=true;
+          _authDebug.storageKey=keys[i];
+        }else{
+          _authDebug.cvInStorage=true;
+          _authDebug.storageKey=keys[i];
         }
+      }
+    }
+    // 額外檢查：不管有沒有 cv 參數，掃描 localStorage 中的 code-verifier
+    for(var si=0;si<localStorage.length;si++){
+      var k=localStorage.key(si);
+      if(k&&k.indexOf('code-verifier')>=0){
+        _authDebug.cvInStorage=true;
+        _authDebug.storageKey=k;
+        break;
       }
     }
   }catch(e){}
@@ -848,7 +864,7 @@ function getSupabaseClient(){
   if(!window.supabase||typeof window.supabase.createClient!=='function')return null;
   // Source: https://supabase.com/docs/reference/javascript/initializing
   supabaseClient=window.supabase.createClient(SUPABASE_CONFIG.url,SUPABASE_CONFIG.publishableKey,{
-    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
+    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}
   });
   // 監聽 auth 狀態變化（處理 OAuth redirect 回來的情況，含手機 LINE 登入）
   supabaseClient.auth.onAuthStateChange(function(event,session){
@@ -980,6 +996,9 @@ async function signInWithLine(){
           authUrl=urlObj.toString();
         }
       }catch(e2){}
+      updateSupabaseStatus('✅ code_verifier 已備份，正在跳轉...',false);
+    }else{
+      updateSupabaseStatus('⚠️ 未找到 code_verifier，跳轉中...',true);
     }
     // 跳轉
     var isStandalone=window.navigator.standalone||window.matchMedia('(display-mode: standalone)').matches;
@@ -2132,74 +2151,78 @@ function handleAuthCallback(){
   }else if(hasCodeInQuery){
     authDiag.flow='PKCE（query 帶 code）';
   }
-  if(hasAuthInHash||hasCodeInQuery){
-    updateSupabaseStatus('正在處理登入回傳（'+authDiag.flow+'）...',false);
-    retryGetSession(0,hasCodeInQuery);
-  }
-}
-function retryGetSession(attempt,hasCode){
-  var maxAttempts=6;
+  if(!hasAuthInHash&&!hasCodeInQuery)return;
+  updateSupabaseStatus('正在處理登入回傳（'+authDiag.flow+'）...',false);
   var client=getSupabaseClient();
   if(!client){
-    if(attempt<maxAttempts){
-      setTimeout(function(){retryGetSession(attempt+1,hasCode)},500);
-    }else{
-      showAuthTimeout();
-    }
+    updateSupabaseStatus('Supabase 尚未載入，請重新整理頁面。',true);
     return;
   }
-  // 如果 URL 有 code 參數，嘗試用 exchangeCodeForSession 處理 PKCE
-  if(hasCode&&attempt===0){
-    var params=new URLSearchParams(window.location.search);
-    var code=params.get('code');
-    if(code){
-      client.auth.exchangeCodeForSession(code).then(function(result){
-        if(result.error){
-          authDiag.codeExchangeError=result.error.message||'unknown error';
-          retryGetSession(1,false);
-        }else{
+  if(hasAuthInHash){
+    // Magic link / implicit：hash 裡有 access_token 和 refresh_token
+    // detectSessionInUrl 已關閉，需手動 setSession
+    try{
+      var hashParams=new URLSearchParams(hash.substring(1));
+      var accessToken=hashParams.get('access_token');
+      var refreshToken=hashParams.get('refresh_token');
+      if(accessToken&&refreshToken){
+        client.auth.setSession({access_token:accessToken,refresh_token:refreshToken}).then(function(result){
           cleanupAuthUrl();
-          initCloudMode().then(function(ok){
-            if(ok)refreshSupabaseStatus();
-          });
-        }
-      }).catch(function(e){
-        authDiag.codeExchangeError=e.message||'catch error';
-        retryGetSession(1,false);
-      });
+          if(result.error){
+            updateSupabaseStatus('Session 設定失敗：'+result.error.message,true);
+          }else{
+            initCloudMode().then(function(ok){if(ok)refreshSupabaseStatus()});
+          }
+        });
+      }
+    }catch(e){
+      updateSupabaseStatus('Hash 解析失敗：'+e.message,true);
+    }
+  }else if(hasCodeInQuery){
+    // PKCE：query 裡有 code，需手動 exchangeCodeForSession
+    // detectSessionInUrl 已關閉，不會有 race condition
+    var params=new URLSearchParams(search);
+    var code=params.get('code');
+    if(!code){
+      showAuthTimeout();
       return;
     }
-  }
-  client.auth.getSession().then(function(result){
-    var session=result&&result.data&&result.data.session;
-    if(session){
+    updateSupabaseStatus('正在交換 code 取得 session...',false);
+    client.auth.exchangeCodeForSession(code).then(function(result){
       cleanupAuthUrl();
-      initCloudMode().then(function(ok){
-        if(ok)refreshSupabaseStatus();
-      });
-    }else if(attempt<maxAttempts){
-      updateSupabaseStatus('正在處理登入（第 '+(attempt+1)+'/'+maxAttempts+' 次嘗試）...',false);
-      setTimeout(function(){retryGetSession(attempt+1,false)},800);
-    }else{
+      if(result.error){
+        authDiag.codeExchangeError=result.error.message||'unknown';
+        showAuthTimeout();
+      }else{
+        initCloudMode().then(function(ok){
+          if(ok)refreshSupabaseStatus();
+          else updateSupabaseStatus('登入成功但無法載入專案。',true);
+        });
+      }
+    }).catch(function(e){
+      authDiag.codeExchangeError=e.message||'catch error';
       showAuthTimeout();
-    }
-  });
+    });
+  }
 }
 function showAuthTimeout(){
-  var msg='⚠️ 登入處理逾時\n';
-  msg+='認證方式：'+authDiag.flow+'\n';
-  if(authDiag.codeExchangeError){
-    msg+='Code 交換錯誤：'+authDiag.codeExchangeError+'\n';
-  }
-  msg+='請截圖此訊息並回報。';
   var el=document.getElementById('supabase-status');
   if(el){
-    el.innerHTML='<div style="text-align:left;font-size:12px;background:#fef3c7;padding:10px;border-radius:8px;margin-bottom:8px">'
-      +'<div style="font-weight:600;color:#92400e;margin-bottom:4px">⚠️ 登入處理逾時</div>'
-      +'<div>認證方式：<b>'+authDiag.flow+'</b></div>'
-      +(authDiag.codeExchangeError?'<div>Code 交換錯誤：<b>'+authDiag.codeExchangeError+'</b></div>':'')
-      +'<div style="margin-top:4px;color:#78716c">請截圖此訊息回報</div>'
-      +'</div>';
+    var lines=[];
+    lines.push('<div style="font-weight:600;color:#92400e;margin-bottom:4px">⚠️ 登入處理逾時</div>');
+    lines.push('<div>認證方式：<b>'+authDiag.flow+'</b></div>');
+    if(authDiag.codeExchangeError){
+      lines.push('<div>Code 交換錯誤：<b>'+authDiag.codeExchangeError+'</b></div>');
+    }
+    // code_verifier 診斷
+    lines.push('<div style="margin-top:4px;border-top:1px solid #e5e7eb;padding-top:4px">');
+    lines.push('URL 帶 cv 參數：<b>'+(_authDebug.cvFromUrl?'是':'否')+'</b>');
+    lines.push(' | 已還原：<b>'+(_authDebug.cvRestored?'是':'否')+'</b>');
+    lines.push(' | Storage 有 verifier：<b>'+(_authDebug.cvInStorage?'是':'否')+'</b>');
+    if(_authDebug.storageKey)lines.push('<br>Key：<b>'+_authDebug.storageKey+'</b>');
+    lines.push('</div>');
+    lines.push('<div style="margin-top:4px;color:#78716c">請截圖此訊息回報</div>');
+    el.innerHTML='<div style="text-align:left;font-size:11px;background:#fef3c7;padding:10px;border-radius:8px;margin-bottom:8px">'+lines.join('')+'</div>';
   }
   var recheckBtn=document.getElementById('supabase-recheck-btn');
   if(recheckBtn)recheckBtn.style.display='block';
