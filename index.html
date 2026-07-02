@@ -124,7 +124,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   <div class="content">
 
     <div class="card" style="padding:20px">
-      <div style="font-size:18px;font-weight:700;margin-bottom:4px" id="home-project-name">高鐵綻</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+        <div style="font-size:18px;font-weight:700" id="home-project-name">高鐵綻</div>
+        <span id="cloud-badge" style="font-size:12px;padding:3px 10px;border-radius:12px;background:#f3f4f6;color:#6b7280;font-weight:600">📱 本機模式</span>
+      </div>
       <div style="font-size:14px;color:var(--text2);margin-bottom:14px" id="home-company-name">瑋瓏營造股份有限公司</div>
       <div class="stat-grid">
         <div class="stat-box">
@@ -218,7 +221,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
         <button class="btn btn-green" id="supabase-sync-btn" onclick="syncCurrentReportToSupabase()" style="flex:1">同步今日日報</button>
         <button class="btn btn-outline" id="supabase-load-btn" onclick="loadCurrentReportFromSupabase()" style="flex:1">讀取雲端日報</button>
       </div>
-      <p style="font-size:12px;color:var(--text3);margin-top:8px">登入後可手動同步或讀取雲端日報；未登入時仍保留本機保存。</p>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-outline" id="supabase-logout-btn" onclick="doSupabaseLogout()" style="flex:1;display:none">登出</button>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-top:8px">登入後日報自動同步雲端；未登入時使用本機保存。</p>
     </div>
 
     <div class="card">
@@ -274,6 +280,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
     <div class="progress-dot"></div>
   </div>
   <div class="step-label">步驟 1 / 5 — 天氣</div>
+  <div id="copy-yesterday-banner" style="display:none;margin:0 16px 12px;padding:14px 16px;background:linear-gradient(135deg,#e8f5e9,#f1f8e9);border:1px solid #c8e6c9;border-radius:12px;text-align:center">
+    <div style="font-size:15px;font-weight:600;color:#2e7d32;margin-bottom:6px">📋 今日尚未填寫日報</div>
+    <div style="font-size:13px;color:#558b2f;margin-bottom:10px">每天從空白開始，確保資料正確</div>
+    <button class="btn" onclick="copyYesterdayReport()" id="copy-yesterday-btn" style="background:#43a047;color:#fff;padding:10px 20px;font-size:14px;border:none;border-radius:8px;cursor:pointer;width:100%">📋 複製昨天日報作為今日底稿</button>
+    <div style="font-size:12px;color:#7cb342;margin-top:6px">複製後仍可自由修改所有欄位</div>
+  </div>
   <div class="content fade-in">
     <div class="card">
       <div class="card-title">🌤️ 今日天氣</div>
@@ -812,18 +824,50 @@ function updateSupabaseStatus(message,isError){
 }
 async function refreshSupabaseStatus(){
   var client=getSupabaseClient();
+  var logoutBtn=document.getElementById('supabase-logout-btn');
+  var emailInput=document.getElementById('supabase-email');
   if(!client){
     updateSupabaseStatus('Supabase 尚未載入，現在使用本機保存。',false);
+    if(logoutBtn)logoutBtn.style.display='none';
     return;
   }
   try{
     var result=await client.auth.getSession();
-    var email=result&&result.data&&result.data.session&&result.data.session.user?result.data.session.user.email:'';
-    updateSupabaseStatus(email?'已登入：'+email+'。雲端保存準備中。':'尚未登入，現在使用本機保存。',false);
+    var session=result&&result.data&&result.data.session;
+    var email=session&&session.user?session.user.email:'';
+    if(email){
+      updateSupabaseStatus('已登入：'+email+(cloudState.enabled?'（雲端同步啟用中）':''),false);
+      if(logoutBtn)logoutBtn.style.display='block';
+      if(emailInput)emailInput.parentElement.style.display='none';
+    }else{
+      updateSupabaseStatus('尚未登入，現在使用本機保存。',false);
+      if(logoutBtn)logoutBtn.style.display='none';
+      if(emailInput)emailInput.parentElement.style.display='flex';
+    }
   }catch(e){
     updateSupabaseStatus('無法讀取登入狀態，現在使用本機保存。',true);
   }
 }
+async function doSupabaseLogout(){
+  var client=getSupabaseClient();
+  if(!client)return;
+  try{
+    await client.auth.signOut();
+    cloudState.enabled=false;
+    cloudState.userId=null;
+    cloudState.projectId=null;
+    supabaseClient=null;
+    setCloudBadge('local');
+    updateSupabaseStatus('已登出，現在使用本機保存。',false);
+    var logoutBtn=document.getElementById('supabase-logout-btn');
+    if(logoutBtn)logoutBtn.style.display='none';
+    var emailInput=document.getElementById('supabase-email');
+    if(emailInput)emailInput.parentElement.style.display='flex';
+  }catch(e){
+    updateSupabaseStatus('登出失敗：'+(e.message||'未知錯誤'),true);
+  }
+}
+
 async function requestSupabaseOtp(){
   var client=getSupabaseClient();
   if(!client){
@@ -1116,6 +1160,189 @@ var LocalReportRepository={
   }
 };
 var ReportRepository=LocalReportRepository;
+
+// ===== 雲端模式狀態 =====
+var cloudState={
+  enabled:false,       // 是否已登入且可用雲端
+  userId:null,         // 登入使用者 ID
+  projectId:null,      // 當前專案 ID
+  syncing:false,       // 是否正在同步中
+  syncTimer:null,      // debounce timer
+  lastSyncAt:null      // 最後同步時間
+};
+
+function isCloudReady(){
+  return cloudState.enabled&&cloudState.userId&&cloudState.projectId&&getSupabaseClient();
+}
+
+// ===== 雲端初始化 =====
+async function initCloudMode(){
+  var client=getSupabaseClient();
+  if(!client){
+    setCloudBadge('local');
+    return false;
+  }
+  try{
+    var result=await client.auth.getSession();
+    var session=result&&result.data&&result.data.session;
+    if(!session||!session.user){
+      setCloudBadge('local');
+      return false;
+    }
+    cloudState.userId=session.user.id;
+    // 取得專案 ID
+    var projResult=await client.from('projects').select('id,name,contractor_name,start_date,end_date,crew_types,material_catalog,equipment_catalog,signers').limit(1).single();
+    if(projResult.error||!projResult.data){
+      setCloudBadge('error','找不到專案');
+      return false;
+    }
+    cloudState.projectId=projResult.data.id;
+    cloudState.enabled=true;
+    cloudState.projectData=projResult.data;
+    setCloudBadge('cloud');
+    updateSupabaseStatus('已登入，雲端模式啟用中。',false);
+    return true;
+  }catch(e){
+    setCloudBadge('error',e.message);
+    return false;
+  }
+}
+
+function setCloudBadge(mode,detail){
+  var el=document.getElementById('cloud-badge');
+  if(!el)return;
+  if(mode==='cloud'){
+    el.textContent='☁️ 雲端模式';
+    el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#dcfce7;color:#16a34a;font-weight:600;display:inline-block';
+  }else if(mode==='syncing'){
+    el.textContent='🔄 同步中...';
+    el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#dbeafe;color:#2563eb;font-weight:600;display:inline-block';
+  }else if(mode==='error'){
+    el.textContent='⚠️ '+(detail||'連線異常');
+    el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#fef3c7;color:#d97706;font-weight:600;display:inline-block';
+  }else{
+    el.textContent='📱 本機模式';
+    el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#f3f4f6;color:#6b7280;font-weight:600;display:inline-block';
+  }
+}
+
+// ===== 雲端讀取專案設定 =====
+function cloudSettingsToLocal(proj){
+  var s=JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  s.projectName=proj.name||s.projectName;
+  s.companyName=proj.contractor_name||s.companyName;
+  s.startDate=proj.start_date||s.startDate;
+  s.endDate=proj.end_date||s.endDate;
+  if(proj.crew_types&&Array.isArray(proj.crew_types))s.crewTypes=proj.crew_types;
+  if(proj.signers&&typeof proj.signers==='object')s.signers=proj.signers;
+  if(proj.material_catalog&&typeof proj.material_catalog==='object')s.materials=proj.material_catalog;
+  if(proj.equipment_catalog&&typeof proj.equipment_catalog==='object')s.equipment=proj.equipment_catalog;
+  return s;
+}
+
+// ===== 雲端讀取日報 =====
+async function cloudLoadReport(dateStr){
+  if(!isCloudReady())return null;
+  var client=getSupabaseClient();
+  try{
+    var reportResult=await client.from('daily_reports')
+      .select('id,report_date,weather_am,weather_pm,construction_days,notes,client_updated_at,updated_at')
+      .eq('project_id',cloudState.projectId)
+      .eq('report_date',dateStr)
+      .maybeSingle();
+    if(reportResult.error)throw reportResult.error;
+    if(!reportResult.data)return null;
+    var report=reportResult.data;
+    var itemResult=await client.from('report_items')
+      .select('item_type,category,name,unit,quantity,is_checked,is_custom,sort_order')
+      .eq('report_id',report.id)
+      .order('sort_order',{ascending:true});
+    if(itemResult.error)throw itemResult.error;
+    return mapSupabaseReportToLocalData(report,itemResult.data||[]);
+  }catch(e){
+    console.warn('雲端讀取日報失敗：',e);
+    return null;
+  }
+}
+
+async function cloudLoadLogs(dateStr){
+  if(!isCloudReady())return null;
+  var client=getSupabaseClient();
+  try{
+    // 先取得該日的 report id
+    var reportResult=await client.from('daily_reports')
+      .select('id')
+      .eq('project_id',cloudState.projectId)
+      .eq('report_date',dateStr)
+      .maybeSingle();
+    if(reportResult.error)throw reportResult.error;
+    if(!reportResult.data)return [];
+    var logResult=await client.from('work_logs')
+      .select('id,title,person,contractor_unit,period_am,period_pm,hours,total_hours,location,work_today,work_tomorrow,has_subcontractor,subcontractor_name,created_at,updated_at')
+      .eq('report_id',reportResult.data.id)
+      .order('created_at',{ascending:true});
+    if(logResult.error)throw logResult.error;
+    return mapSupabaseWorkLogsToLocalLogs(dateStr,logResult.data||[]);
+  }catch(e){
+    console.warn('雲端讀取施工紀錄失敗：',e);
+    return null;
+  }
+}
+
+// ===== 雲端歷史日報列表 =====
+async function cloudListReports(limit){
+  if(!isCloudReady())return null;
+  var client=getSupabaseClient();
+  try{
+    var result=await client.from('daily_reports')
+      .select('report_date,weather_am,weather_pm,construction_days,status,updated_at')
+      .eq('project_id',cloudState.projectId)
+      .order('report_date',{ascending:false})
+      .limit(limit||30);
+    if(result.error)throw result.error;
+    return result.data||[];
+  }catch(e){
+    console.warn('雲端讀取歷史日報列表失敗：',e);
+    return null;
+  }
+}
+
+async function cloudLoadReportWithItems(dateStr){
+  if(!isCloudReady())return null;
+  var data=await cloudLoadReport(dateStr);
+  if(!data)return null;
+  // 也載入施工紀錄
+  var logs=await cloudLoadLogs(dateStr);
+  return {report:data,logs:logs||[]};
+}
+
+// ===== 自動同步（debounced） =====
+function scheduleCloudSync(){
+  if(!isCloudReady())return;
+  if(cloudState.syncTimer)clearTimeout(cloudState.syncTimer);
+  cloudState.syncTimer=setTimeout(function(){
+    doCloudSync();
+  },3000); // 3 秒防抖
+}
+
+async function doCloudSync(){
+  if(!isCloudReady()||cloudState.syncing)return;
+  cloudState.syncing=true;
+  setCloudBadge('syncing');
+  try{
+    var reportId=await syncCurrentReportToSupabase();
+    if(reportId){
+      cloudState.lastSyncAt=new Date();
+      setCloudBadge('cloud');
+    }else{
+      setCloudBadge('error','同步失敗');
+    }
+  }catch(e){
+    setCloudBadge('error','同步失敗');
+  }finally{
+    cloudState.syncing=false;
+  }
+}
 function saveToStore(key,data){
   try{ReportRepository.saveRaw(key,data)}
   catch(e){console.warn('儲存失敗',e)}
@@ -1281,6 +1508,8 @@ function populateReportUI(data){
 function autoSave(){
   var data=collectReportData();
   saveReport(currentReportDate,data);
+  // 雲端模式：排程自動同步
+  scheduleCloudSync();
 }
 
 // ===== 更新首頁資訊 =====
@@ -1448,6 +1677,136 @@ function confirmSettingsCrewAdd(){
 // ===== 顯示帶入提示 =====
 
 // ===== 初始化 =====
+function buildFreshReport(settings){
+  var fresh={date:currentReportDate,weather:{am:'晴',pm:'陰'},constructionDays:daysBetween(settings.startDate,currentReportDate)+1,
+    crew:settings.crewTypes.map(function(t){return{name:t,count:0}}),
+    materials:{},equipment:{},
+    progress:{today:'',tomorrow:'',notes:''}};
+  Object.keys(settings.materials).forEach(function(cat){
+    fresh.materials[cat]=settings.materials[cat].items.map(function(item){
+      return{name:item.name,unit:item.unit,checked:false,qty:''};
+    });
+  });
+  Object.keys(settings.equipment).forEach(function(cat){
+    fresh.equipment[cat]=settings.equipment[cat].items.map(function(item){
+      return{name:item.name,unit:item.unit,checked:false,qty:''};
+    });
+  });
+  return fresh;
+}
+
+// ===== 每日空白開始 + 複製昨日日報 =====
+var todayIsBlank=false; // 追蹤今日是否為空白狀態
+
+function findPreviousReport(maxDays){
+  // 從昨天開始往前掃描，找最近一筆有資料的日報
+  var today=new Date(currentReportDate);
+  for(var i=1;i<=maxDays;i++){
+    var d=new Date(today);d.setDate(today.getDate()-i);
+    var ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    var rpt=loadReport(ds);
+    if(rpt)return{date:ds,data:rpt};
+  }
+  return null;
+}
+
+function transformPreviousReport(prevData,settings){
+  // 將前一天日報轉換為今日底稿
+  var draft={
+    date:currentReportDate,
+    weather:{am:'晴',pm:'陰'}, // 天氣不帶入，每天不同
+    constructionDays:daysBetween(settings.startDate,currentReportDate)+1,
+    crew:[],
+    materials:{},
+    equipment:{},
+    progress:{today:'',tomorrow:'',notes:''}
+  };
+  // 人員：帶入工種與人數
+  if(prevData.crew){
+    draft.crew=prevData.crew.map(function(c){return{name:c.name,count:c.count||0}});
+  }
+  // 材料：帶入勾選狀態，清空數量
+  if(prevData.materials){
+    Object.keys(prevData.materials).forEach(function(cat){
+      draft.materials[cat]=prevData.materials[cat].map(function(item){
+        return{name:item.name,unit:item.unit,checked:item.checked||false,qty:''};
+      });
+    });
+  }
+  // 機具：帶入勾選狀態，清空數量
+  if(prevData.equipment){
+    Object.keys(prevData.equipment).forEach(function(cat){
+      draft.equipment[cat]=prevData.equipment[cat].map(function(item){
+        return{name:item.name,unit:item.unit,checked:item.checked||false,qty:''};
+      });
+    });
+  }
+  // 進度：昨天的「明日進度」→ 今天的「今日進度」
+  if(prevData.progress){
+    draft.progress.today=prevData.progress.tomorrow||'';
+    // 明日進度、備註清空
+  }
+  return draft;
+}
+
+function showCopyBanner(show,prevDateStr){
+  var banner=document.getElementById('copy-yesterday-banner');
+  if(!banner)return;
+  if(show&&prevDateStr){
+    var dayLabel=prevDateStr+'（'+getDayOfWeek(prevDateStr)+'）';
+    var btn=document.getElementById('copy-yesterday-btn');
+    if(btn)btn.textContent='📋 複製 '+dayLabel+' 日報作為今日底稿';
+    banner.style.display='block';
+    banner.dataset.prevDate=prevDateStr;
+  }else if(show){
+    // 沒有前日資料可複製
+    banner.style.display='none';
+  }else{
+    banner.style.display='none';
+  }
+}
+
+function copyYesterdayReport(){
+  var banner=document.getElementById('copy-yesterday-banner');
+  var prevDateStr=banner?banner.dataset.prevDate:null;
+  if(!prevDateStr)return;
+  var prevReport=loadReport(prevDateStr);
+  if(!prevReport){
+    alert('找不到 '+prevDateStr+' 的日報資料');
+    return;
+  }
+  var settings=loadSettings();
+  var draft=transformPreviousReport(prevReport,settings);
+  populateReportUI(draft);
+  // 立即存檔，標記今日已有資料
+  autoSave();
+  todayIsBlank=false;
+  showCopyBanner(false);
+  // 顯示確認提示
+  var tip=document.createElement('div');
+  tip.style.cssText='position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#43a047;color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,0.2)';
+  tip.textContent='✅ 已複製 '+prevDateStr+' 日報，請確認並修改';
+  document.body.appendChild(tip);
+  setTimeout(function(){tip.remove()},3000);
+}
+
+async function copyYesterdayFromCloud(){
+  // 雲端模式：嘗試從雲端找前一天日報
+  if(!isCloudReady())return null;
+  var today=new Date(currentReportDate);
+  for(var i=1;i<=7;i++){
+    var d=new Date(today);d.setDate(today.getDate()-i);
+    var ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    var cloudData=await cloudLoadReport(ds);
+    if(cloudData){
+      // 存入 localStorage 作為快取
+      saveReport(ds,cloudData);
+      return{date:ds,data:cloudData};
+    }
+  }
+  return null;
+}
+
 function initApp(){
   // 檢查 localStorage 可用性
   try{localStorage.setItem('cdr-test','1');localStorage.removeItem('cdr-test')}
@@ -1455,37 +1814,96 @@ function initApp(){
     alert('注意：您的瀏覽器不支援資料儲存（可能是隱私模式），填寫的資料將無法保存。');
     return;
   }
+  // 先用本機資料快速顯示（避免等待雲端）
   var settings=loadSettings();
-  // 載入設定頁
   loadSettingsUI();
-  refreshSupabaseStatus();
   updateHomeInfo();
-  // 載入今天的日報
   var todayData=loadReport(currentReportDate);
   if(todayData){
+    // 今日已有資料，正常載入
     populateReportUI(todayData);
+    todayIsBlank=false;
+    showCopyBanner(false);
   }else{
-    // 全新：用預設值（不帶入昨天資料，確保每天重新確認）
-    var fresh={date:currentReportDate,weather:{am:'晴',pm:'陰'},constructionDays:daysBetween(settings.startDate,currentReportDate)+1,
-      crew:settings.crewTypes.map(function(t){return{name:t,count:0}}),
-      materials:{},equipment:{},
-      progress:{today:'',tomorrow:'',notes:''}};
-    // 從設定載入預設材料/機具（全部未勾選）
-    Object.keys(settings.materials).forEach(function(cat){
-      fresh.materials[cat]=settings.materials[cat].items.map(function(item){
-        return{name:item.name,unit:item.unit,checked:false,qty:''};
-      });
-    });
-    Object.keys(settings.equipment).forEach(function(cat){
-      fresh.equipment[cat]=settings.equipment[cat].items.map(function(item){
-        return{name:item.name,unit:item.unit,checked:false,qty:''};
-      });
-    });
-    populateReportUI(fresh);
+    // 每日空白開始：顯示空白表單 + 複製昨日按鈕
+    populateReportUI(buildFreshReport(settings));
+    todayIsBlank=true;
+    var prev=findPreviousReport(30);
+    showCopyBanner(!!prev,prev?prev.date:null);
   }
   updateWeeklyStats();
   updateLogList();
   updateHistoryList();
+  // 非同步嘗試雲端初始化
+  initCloudMode().then(function(cloudOk){
+    if(!cloudOk){
+      refreshSupabaseStatus();
+      return;
+    }
+    // 雲端初始化成功：用雲端專案設定覆蓋本機
+    if(cloudState.projectData){
+      var cloudSettings=cloudSettingsToLocal(cloudState.projectData);
+      saveSettings(cloudSettings); // 同步寫入 localStorage 作為快取
+      loadSettingsUI();
+      updateHomeInfo();
+    }
+    // 嘗試從雲端載入今日日報
+    cloudLoadReport(currentReportDate).then(function(cloudData){
+      if(cloudData){
+        // 雲端有今日資料 → 載入並隱藏複製按鈕
+        var localData=loadReport(currentReportDate);
+        var localTime=localData&&localData.savedAt?new Date(localData.savedAt).getTime():0;
+        var cloudTime=cloudData.savedAt?new Date(cloudData.savedAt).getTime():0;
+        if(cloudTime>=localTime){
+          saveReport(currentReportDate,cloudData);
+          populateReportUI(cloudData);
+        }
+        todayIsBlank=false;
+        showCopyBanner(false);
+      }else if(todayIsBlank){
+        // 雲端也沒有今日資料：嘗試從雲端找前日資料供複製
+        return copyYesterdayFromCloud().then(function(cloudPrev){
+          if(cloudPrev){
+            // 雲端找到前日資料，更新複製按鈕
+            showCopyBanner(true,cloudPrev.date);
+          }
+        });
+      }
+      // 載入雲端施工紀錄
+      return cloudLoadLogs(currentReportDate);
+    }).then(function(cloudLogs){
+      if(cloudLogs&&cloudLogs.length>0){
+        replaceLocalLogsForDate(currentReportDate,cloudLogs);
+        updateLogList();
+      }
+      // 更新歷史日報（雲端）
+      return updateHistoryListFromCloud();
+    }).then(function(){
+      updateWeeklyStats();
+    }).catch(function(e){
+      console.warn('雲端資料載入失敗，使用本機資料：',e);
+    });
+  });
+}
+
+// Supabase auth callback 處理（從 email magic link 回來時）
+function handleAuthCallback(){
+  var hash=window.location.hash;
+  if(hash&&(hash.indexOf('access_token')>=0||hash.indexOf('type=magiclink')>=0)){
+    // Supabase client 會自動從 hash 處理 session，等它處理完再重新初始化
+    var client=getSupabaseClient();
+    if(client){
+      client.auth.getSession().then(function(){
+        // 清除 hash 避免重複處理
+        if(window.history&&window.history.replaceState){
+          window.history.replaceState(null,'',window.location.pathname+window.location.search);
+        }
+        initCloudMode().then(function(ok){
+          if(ok)refreshSupabaseStatus();
+        });
+      });
+    }
+  }
 }
 
 // ===== 導航（含自動存檔）=====
@@ -1512,7 +1930,10 @@ function goTo(id){
 }
 
 // 頁面載入時初始化
-document.addEventListener('DOMContentLoaded',initApp);
+document.addEventListener('DOMContentLoaded',function(){
+  initApp();
+  handleAuthCallback();
+});
 
 function selectWeather(el){
   el.parentElement.querySelectorAll('.weather-btn').forEach(b=>b.classList.remove('selected'));
@@ -1676,6 +2097,8 @@ function loadLogRecords(){
 }
 function saveLogRecords(records){
   saveToStore('logs',records);
+  // 施工紀錄變更時也排程雲端同步
+  scheduleCloudSync();
 }
 
 function openLogForm(editId){
@@ -1896,52 +2319,126 @@ function updateHistoryList(){
     var rpt=loadReport(ds);
     if(!rpt)continue;
     found++;
-    var dow=getDayOfWeek(ds);
-    // 計算摘要
-    var crewTotal=0;
-    if(rpt.crew)rpt.crew.forEach(function(c){crewTotal+=(c.count||0)});
-    var matCount=0;
-    if(rpt.materials)Object.keys(rpt.materials).forEach(function(cat){
-      rpt.materials[cat].forEach(function(item){if(item.checked)matCount++});
-    });
-    var equipCount=0;
-    if(rpt.equipment)Object.keys(rpt.equipment).forEach(function(cat){
-      rpt.equipment[cat].forEach(function(item){if(item.checked)equipCount++});
-    });
-    var card=document.createElement('div');
-    card.className='card';
-    card.style.cursor='pointer';
-    (function(dateStr){
-      card.onclick=function(){viewHistoryDetail(dateStr)};
-    })(ds);
-    var row=document.createElement('div');
-    row.style.cssText='display:flex;justify-content:space-between;align-items:center';
-    var left=document.createElement('div');
-    var dateDiv=document.createElement('div');
-    dateDiv.style.fontWeight='600';
-    dateDiv.style.fontSize='15px';
-    dateDiv.textContent=ds+'（'+dow+'）';
-    var summaryDiv=document.createElement('div');
-    summaryDiv.style.cssText='font-size:13px;color:var(--text2);margin-top:2px';
-    summaryDiv.textContent='人員 '+crewTotal+' 人｜材料 '+matCount+' 項｜機具 '+equipCount+' 台';
-    left.appendChild(dateDiv);
-    left.appendChild(summaryDiv);
-    var badge=document.createElement('span');
-    badge.style.cssText='color:var(--green);font-size:13px;font-weight:600';
-    badge.textContent='已完成 ✓';
-    row.appendChild(left);
-    row.appendChild(badge);
-    card.appendChild(row);
-    container.appendChild(card);
+    renderHistoryCard(container,ds,rpt,'local');
   }
   if(found===0){
     container.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:15px">尚無歷史日報紀錄<br><span style="font-size:13px">填寫日報後，紀錄會出現在這裡</span></div>';
   }
 }
 
+function renderHistoryCard(container,ds,rpt,source){
+  var dow=getDayOfWeek(ds);
+  var crewTotal=0;
+  if(rpt.crew)rpt.crew.forEach(function(c){crewTotal+=(c.count||0)});
+  var matCount=0;
+  if(rpt.materials)Object.keys(rpt.materials).forEach(function(cat){
+    rpt.materials[cat].forEach(function(item){if(item.checked)matCount++});
+  });
+  var equipCount=0;
+  if(rpt.equipment)Object.keys(rpt.equipment).forEach(function(cat){
+    rpt.equipment[cat].forEach(function(item){if(item.checked)equipCount++});
+  });
+  var card=document.createElement('div');
+  card.className='card';
+  card.style.cursor='pointer';
+  (function(dateStr){
+    card.onclick=function(){viewHistoryDetail(dateStr)};
+  })(ds);
+  var row=document.createElement('div');
+  row.style.cssText='display:flex;justify-content:space-between;align-items:center';
+  var left=document.createElement('div');
+  var dateDiv=document.createElement('div');
+  dateDiv.style.fontWeight='600';
+  dateDiv.style.fontSize='15px';
+  dateDiv.textContent=ds+'（'+dow+'）';
+  var summaryDiv=document.createElement('div');
+  summaryDiv.style.cssText='font-size:13px;color:var(--text2);margin-top:2px';
+  summaryDiv.textContent='人員 '+crewTotal+' 人｜材料 '+matCount+' 項｜機具 '+equipCount+' 台';
+  left.appendChild(dateDiv);
+  left.appendChild(summaryDiv);
+  var badge=document.createElement('span');
+  badge.style.cssText='color:var(--green);font-size:13px;font-weight:600';
+  badge.textContent=source==='cloud'?'☁️ 已同步':'已完成 ✓';
+  row.appendChild(left);
+  row.appendChild(badge);
+  card.appendChild(row);
+  container.appendChild(card);
+}
+
+async function updateHistoryListFromCloud(){
+  if(!isCloudReady())return;
+  var container=document.getElementById('history-list-container');
+  if(!container)return;
+  try{
+    var cloudReports=await cloudListReports(30);
+    if(!cloudReports||cloudReports.length===0)return;
+    container.innerHTML='';
+    var found=0;
+    for(var i=0;i<cloudReports.length;i++){
+      var cr=cloudReports[i];
+      if(cr.report_date===currentReportDate)continue; // 跳過今天
+      found++;
+      // 嘗試從本機讀取完整資料（用於摘要計算）
+      var localData=loadReport(cr.report_date);
+      if(localData){
+        renderHistoryCard(container,cr.report_date,localData,'cloud');
+      }else{
+        // 本機沒有完整資料，先顯示簡單卡片
+        var dow=getDayOfWeek(cr.report_date);
+        var card=document.createElement('div');
+        card.className='card';
+        card.style.cursor='pointer';
+        (function(dateStr){
+          card.onclick=function(){viewHistoryDetail(dateStr)};
+        })(cr.report_date);
+        var row=document.createElement('div');
+        row.style.cssText='display:flex;justify-content:space-between;align-items:center';
+        var left=document.createElement('div');
+        var dateDiv=document.createElement('div');
+        dateDiv.style.fontWeight='600';
+        dateDiv.style.fontSize='15px';
+        dateDiv.textContent=cr.report_date+'（'+dow+'）';
+        var summaryDiv=document.createElement('div');
+        summaryDiv.style.cssText='font-size:13px;color:var(--text2);margin-top:2px';
+        summaryDiv.textContent='天氣：'+(cr.weather_am||'—')+'/'+(cr.weather_pm||'—')+'｜施工 '+cr.construction_days+' 天';
+        left.appendChild(dateDiv);
+        left.appendChild(summaryDiv);
+        var badge=document.createElement('span');
+        badge.style.cssText='color:var(--green);font-size:13px;font-weight:600';
+        badge.textContent='☁️ 雲端';
+        row.appendChild(left);
+        row.appendChild(badge);
+        card.appendChild(row);
+        container.appendChild(card);
+      }
+    }
+    if(found===0){
+      container.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:15px">尚無歷史日報紀錄<br><span style="font-size:13px">填寫日報後，紀錄會出現在這裡</span></div>';
+    }
+  }catch(e){
+    console.warn('雲端歷史日報載入失敗：',e);
+  }
+}
+
 function viewHistoryDetail(dateStr){
   var rpt=loadReport(dateStr);
+  // 本機沒有資料時嘗試從雲端讀取
+  if(!rpt&&isCloudReady()){
+    cloudLoadReport(dateStr).then(function(cloudData){
+      if(cloudData){
+        saveReport(dateStr,cloudData); // 快取到本機
+        showHistoryDetail(dateStr,cloudData);
+      }else{
+        goTo('screen-history');
+      }
+    });
+    return;
+  }
   if(!rpt){goTo('screen-history');return}
+  showHistoryDetail(dateStr,rpt);
+}
+
+function showHistoryDetail(dateStr,rpt){
   var dow=getDayOfWeek(dateStr);
   var titleEl=document.getElementById('history-detail-title');
   if(titleEl)titleEl.textContent=dateStr+'（'+dow+'）';
