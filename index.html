@@ -813,6 +813,28 @@ var DEFAULT_SETTINGS={
   }
 };
 
+// ===== PKCE code_verifier 還原（必須在 Supabase client 建立之前執行）=====
+// 手機 LINE 登入時，瀏覽器環境會切換（LINE App → 內建瀏覽器），
+// localStorage 中的 code_verifier 會遺失。跳轉前我們把它備份到 URL，回來時在這裡還原。
+(function(){
+  try{
+    var params=new URLSearchParams(window.location.search);
+    var cv=params.get('cv');
+    if(cv){
+      // 嘗試所有可能的 Supabase storageKey 格式
+      var keys=[
+        'supabase.auth.token-code-verifier',
+        'sb-wadlcguhhmmpizbcbuus-auth-token-code-verifier'
+      ];
+      for(var i=0;i<keys.length;i++){
+        if(!localStorage.getItem(keys[i])){
+          localStorage.setItem(keys[i],cv);
+        }
+      }
+    }
+  }catch(e){}
+})();
+
 // ===== localStorage 存取 =====
 var STORE_PREFIX='cdr-';
 var SUPABASE_CONFIG={
@@ -826,7 +848,7 @@ function getSupabaseClient(){
   if(!window.supabase||typeof window.supabase.createClient!=='function')return null;
   // Source: https://supabase.com/docs/reference/javascript/initializing
   supabaseClient=window.supabase.createClient(SUPABASE_CONFIG.url,SUPABASE_CONFIG.publishableKey,{
-    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'implicit'}
+    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
   });
   // 監聽 auth 狀態變化（處理 OAuth redirect 回來的情況，含手機 LINE 登入）
   supabaseClient.auth.onAuthStateChange(function(event,session){
@@ -927,11 +949,41 @@ async function signInWithLine(){
     if(result.error)throw result.error;
     var authUrl=result.data&&result.data.url;
     if(!authUrl)throw new Error('無法取得登入網址');
-    // 手機上：先嘗試用 window.location.replace 跳轉（比 href 更容易觸發 Universal Links）
-    // iOS PWA standalone 模式：用 window.open 打開 Safari（PWA 內部不支援 Universal Links）
+    // === PKCE code_verifier 備份 ===
+    // 手機上 LINE App 認證後可能開在不同瀏覽器環境（LINE 內建 WebView），
+    // localStorage 中的 code_verifier 會遺失。把它備份到 redirect URL 中。
+    var cv=null;
+    var cvKeys=['supabase.auth.token-code-verifier','sb-wadlcguhhmmpizbcbuus-auth-token-code-verifier'];
+    for(var ki=0;ki<cvKeys.length;ki++){
+      var v=localStorage.getItem(cvKeys[ki]);
+      if(v){cv=v;break;}
+    }
+    // 如果找不到已知的 key，掃描所有 localStorage
+    if(!cv){
+      for(var si=0;si<localStorage.length;si++){
+        var k=localStorage.key(si);
+        if(k&&k.indexOf('code-verifier')>=0){
+          cv=localStorage.getItem(k);
+          break;
+        }
+      }
+    }
+    if(cv){
+      // 把 cv 注入 auth URL 的 redirect_to 參數中
+      try{
+        var urlObj=new URL(authUrl);
+        var redirectTo=urlObj.searchParams.get('redirect_to');
+        if(redirectTo){
+          var rdUrl=new URL(redirectTo);
+          rdUrl.searchParams.set('cv',cv);
+          urlObj.searchParams.set('redirect_to',rdUrl.toString());
+          authUrl=urlObj.toString();
+        }
+      }catch(e2){}
+    }
+    // 跳轉
     var isStandalone=window.navigator.standalone||window.matchMedia('(display-mode: standalone)').matches;
     if(isStandalone){
-      // PWA 模式：用 Safari 開啟，才能觸發 LINE App
       window.open(authUrl,'_blank');
     }else{
       window.location.replace(authUrl);
