@@ -824,6 +824,24 @@ function _cp(id,msg,data){
   try{localStorage.setItem('_lineCP',JSON.stringify(_lineCP.log));}catch(e){}
   try{sessionStorage.setItem('_lineCP',JSON.stringify(_lineCP.log));}catch(e){}
 }
+function isPkceVerifierKey(key){
+  return !!key&&(key.indexOf('code-verifier')>=0||key.indexOf('verifier')>=0||key.indexOf('pkce')>=0);
+}
+function clearPkceVerifierKeys(){
+  var removed=[];
+  try{
+    var keys=[];
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(isPkceVerifierKey(k))keys.push(k);
+    }
+    keys.forEach(function(k){
+      localStorage.removeItem(k);
+      removed.push(k);
+    });
+  }catch(e){}
+  return removed;
+}
 // 頁面載入時，先讀取跳轉前留下的 checkpoint（如果有的話）
 (function(){
   try{
@@ -852,12 +870,8 @@ function _cp(id,msg,data){
       ];
       for(var i=0;i<keys.length;i++){
         var existing=localStorage.getItem(keys[i]);
-        if(!existing){
-          localStorage.setItem(keys[i],cv);
-          _cp('CP6a','cv 從 URL 還原到 localStorage',{key:keys[i],cv8:cv.substring(0,8)});
-        }else{
-          _cp('CP6b','localStorage 已有 cv（未覆蓋）',{key:keys[i],existing8:existing.substring(0,8),url8:cv.substring(0,8)});
-        }
+        localStorage.setItem(keys[i],cv);
+        _cp('CP6a','cv 從 URL 寫入 localStorage',{key:keys[i],hadExisting:!!existing,existing8:existing?existing.substring(0,8):'',cv8:cv.substring(0,8)});
       }
     }
     // 掃描 localStorage 中所有 code-verifier 相關 key
@@ -974,13 +988,14 @@ async function signInWithLine(){
   // 清除舊的 checkpoint 紀錄，開始新流程
   _lineCP.log=[];_lineCP.ss=[];
   try{localStorage.removeItem('_lineCP');sessionStorage.removeItem('_lineCP');}catch(e){}
+  var clearedVerifierKeys=clearPkceVerifierKeys();
 
   var client=getSupabaseClient();
   if(!client){
     alert('Supabase 尚未載入完成，請確認網路連線後重新整理。');
     return;
   }
-  _cp('CP1','signInWithLine 開始',{ua:navigator.userAgent.substring(0,80)});
+  _cp('CP1','signInWithLine 開始',{ua:navigator.userAgent.substring(0,80),clearedVerifierKeys:clearedVerifierKeys.join(',')||'(無)'});
   try{
     updateSupabaseStatus('正在跳轉到 LINE 登入...',false);
     var result=await client.auth.signInWithOAuth({
@@ -1016,7 +1031,7 @@ async function signInWithLine(){
     if(!cv){
       for(var si=0;si<localStorage.length;si++){
         var k=localStorage.key(si);
-        if(k&&k.indexOf('code-verifier')>=0||k&&k.indexOf('verifier')>=0||k&&k.indexOf('pkce')>=0){
+        if(isPkceVerifierKey(k)){
           cv=localStorage.getItem(k);cvFoundKey=k;break;
         }
       }
