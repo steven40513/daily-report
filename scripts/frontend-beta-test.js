@@ -133,6 +133,28 @@ async function main() {
   const backfilledReport = window.loadReport('2026-06-16');
   assert('report saved with backfilled flag', backfilledReport && backfilledReport.backfilled === true);
 
+  // 補填同步時序回歸測試：
+  // 補填期間排程的自動同步（3 秒防抖）若在退出補填後才觸發，
+  // 不可把補填日的資料誤同步成「今天」的日報。
+  // 修法：scheduleCloudSync 鎖定排程當下日期；退出補填時取消排程並立即同步補填日。
+  const realIsCloudReady = window.isCloudReady;
+  const realDoCloudSync = window.doCloudSync;
+  window.isCloudReady = () => true;
+  const syncedDates = [];
+  window.doCloudSync = (d) => { syncedDates.push(d); };
+  const todayReportBefore = JSON.stringify(Object.assign({}, window.loadReport(beforeBackfillToday), { savedAt: null }));
+  window.startBackfillForDate('2026-06-17');
+  window.scheduleCloudSync(); // 模擬補填過程中 autoSave 排程的自動同步
+  assert('cloud sync timer scheduled during backfill', window.cloudState.syncTimer !== null);
+  window.completeBackfill();
+  assert('pending sync timer cancelled on backfill exit', window.cloudState.syncTimer === null);
+  assert('backfill date synced immediately on exit', syncedDates.length === 1 && syncedDates[0] === '2026-06-17');
+  assert('currentReportDate restored after backfill sync', window.currentReportDate === beforeBackfillToday);
+  const todayReportAfter = JSON.stringify(Object.assign({}, window.loadReport(beforeBackfillToday), { savedAt: null }));
+  assert('today report not polluted by backfill data', todayReportBefore === todayReportAfter);
+  window.isCloudReady = realIsCloudReady;
+  window.doCloudSync = realDoCloudSync;
+
   window.goTo('screen-report-calendar');
   assert('calendar grid renders cells', document.querySelectorAll('#calendar-grid > div').length > 25);
 

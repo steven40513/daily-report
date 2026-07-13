@@ -1304,21 +1304,35 @@ async function getFirstSupabaseProject(client){
   if(!result.data||!result.data.id)throw new Error('找不到可用專案，請先執行 seed SQL。');
   return result.data;
 }
-async function syncCurrentReportToSupabase(){
+async function syncCurrentReportToSupabase(targetDate){
+  // targetDate：要同步的日報日期；不傳則同步目前畫面的日期。
+  // 補填流程會在退出補填模式後才觸發排程好的同步，此時 currentReportDate 已被還原，
+  // 若不鎖定日期，補填日的畫面資料會被誤寫到「今天」，造成資料污染。
+  var syncDate=targetDate||currentReportDate;
   try{
-    updateSupabaseStatus('正在同步今日日報...',false);
+    updateSupabaseStatus('正在同步 '+syncDate+' 日報...',false);
     var client=requireSupabaseClient();
     var userResult=await client.auth.getUser();
     assertSupabaseOk(userResult,'讀取登入者失敗');
     var user=userResult.data&&userResult.data.user;
     if(!user)throw new Error('尚未登入，請先用 Email 登入。');
     var project=await getFirstSupabaseProject(client);
-    var data=collectReportData();
-    // Avoid calling autoSave() here because it can schedule another cloud sync.
-    saveReport(currentReportDate,data);
+    var data;
+    if(syncDate===currentReportDate){
+      data=collectReportData();
+      // Avoid calling autoSave() here because it can schedule another cloud sync.
+      saveReport(syncDate,data);
+    }else{
+      // 同步的不是目前畫面的日期：以本機已存的資料為準，不讀畫面
+      data=loadReport(syncDate);
+      if(!data){
+        updateSupabaseStatus('找不到 '+syncDate+' 的本機日報，已略過同步。',true);
+        return null;
+      }
+    }
     var reportPayload={
       project_id:project.id,
-      report_date:currentReportDate,
+      report_date:syncDate,
       created_by:user.id,
       weather_am:data.weather&&data.weather.am?data.weather.am:null,
       weather_pm:data.weather&&data.weather.pm?data.weather.pm:null,
@@ -1340,12 +1354,12 @@ async function syncCurrentReportToSupabase(){
       await client.from('report_items').insert(itemRows).then(function(result){assertSupabaseOk(result,'同步日報明細失敗')});
     }
     await client.from('work_logs').delete().eq('report_id',reportId).then(function(result){assertSupabaseOk(result,'清除施工紀錄失敗')});
-    var localLogs=loadCrewEntries().filter(function(r){return r.date===currentReportDate});
+    var localLogs=loadCrewEntries().filter(function(r){return r.date===syncDate});
     var workLogRows=mapWorkLogsForSupabase(reportId,localLogs,user.id);
     if(workLogRows.length>0){
       await client.from('work_logs').insert(workLogRows).then(function(result){assertSupabaseOk(result,'同步施工紀錄失敗')});
     }
-    updateSupabaseStatus('已同步今日日報到雲端：'+new Date().toLocaleTimeString('zh-TW'),false);
+    updateSupabaseStatus('已同步 '+syncDate+' 日報到雲端：'+new Date().toLocaleTimeString('zh-TW'),false);
     return reportId;
   }catch(e){
     updateSupabaseStatus('雲端同步失敗：'+(e.message||'未知錯誤'),true);
@@ -1694,17 +1708,19 @@ async function cloudLoadReportWithItems(dateStr){
 function scheduleCloudSync(){
   if(!isCloudReady())return;
   if(cloudState.syncTimer)clearTimeout(cloudState.syncTimer);
+  var targetDate=currentReportDate; // 鎖定排程當下的日期，避免補填退出後誤同步到別天
   cloudState.syncTimer=setTimeout(function(){
-    doCloudSync();
+    cloudState.syncTimer=null;
+    doCloudSync(targetDate);
   },3000); // 3 秒防抖
 }
 
-async function doCloudSync(){
+async function doCloudSync(targetDate){
   if(!isCloudReady()||cloudState.syncing)return;
   cloudState.syncing=true;
   setCloudBadge('syncing');
   try{
-    var reportId=await syncCurrentReportToSupabase();
+    var reportId=await syncCurrentReportToSupabase(targetDate);
     if(reportId){
       cloudState.lastSyncAt=new Date();
       setCloudBadge('cloud');
@@ -2924,8 +2940,27 @@ function startBackfillForDate(dateStr){
   backfillOriginalDate=getTodayStr();
   currentReportDate=dateStr;
   isBackfillMode=true;
+  // 載入補填日既有資料（沒有就給空白表單），避免畫面殘留今天的內容被誤存進補填日
+  var existing=loadReport(dateStr);
+  populateReportUI(existing||buildFreshReport(loadSettings()));
   updateBackfillBanner();
   goTo('screen-step1');
+}
+
+// 把畫面資料還原成 currentReportDate 當天的內容（補填結束後呼叫）
+function restoreCurrentDateUI(){
+  var settings=loadSettings();
+  var data=loadReport(currentReportDate);
+  if(data){
+    populateReportUI(data);
+    todayIsBlank=false;
+    showCopyBanner(false);
+  }else{
+    populateReportUI(buildFreshReport(settings));
+    todayIsBlank=true;
+    var prev=findPreviousReport(30);
+    showCopyBanner(!!prev,prev?prev.date:null);
+  }
 }
 
 function updateBackfillBanner(){
@@ -2941,27 +2976,37 @@ function updateBackfillBanner(){
 
 function exitBackfillMode(markCompleted){
   if(!isBackfillMode)return;
+  var backfillDate=currentReportDate;
+  // 取消還沒觸發的自動同步排程，避免計時器在日期還原後才觸發
+  if(cloudState.syncTimer){clearTimeout(cloudState.syncTimer);cloudState.syncTimer=null;}
   if(markCompleted){
-    var data=loadReport(currentReportDate)||collectReportData();
+    var data=loadReport(backfillDate)||collectReportData();
     data.backfilled=true;
     data.backfilledAt=new Date().toISOString();
-    saveReport(currentReportDate,data);
+    saveReport(backfillDate,data);
   }
   isBackfillMode=false;
   currentReportDate=backfillOriginalDate||getTodayStr();
   backfillOriginalDate=null;
   updateBackfillBanner();
+  // 補填日的資料立即同步上雲（含取消補填時已填的部分），不留在排程裡
+  if(isCloudReady()&&loadReport(backfillDate)){doCloudSync(backfillDate);}
 }
 
 function cancelBackfill(){
   if(!confirm('取消補填？已經填的內容會保留在那一天，之後可以再回來繼續。'))return;
-  exitBackfillMode(false);
+  // 先切換畫面：離開步驟畫面時的 autoSave 仍在補填模式下，會正確存進補填日
   goTo('screen-report-calendar');
+  exitBackfillMode(false);
+  restoreCurrentDateUI();
 }
 
 function completeBackfill(){
-  exitBackfillMode(true);
+  // 先切換畫面：離開步驟畫面時的 autoSave 仍在補填模式下，會正確存進補填日。
+  // 若先退出補填模式再切畫面，autoSave 會把補填畫面的資料誤存成「今天」的日報。
   goTo('screen-report-calendar');
+  exitBackfillMode(true);
+  restoreCurrentDateUI();
 }
 
 function renderCrewSubtypeList(catId){
