@@ -116,6 +116,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 
 <div class="proto-banner">📐 互動原型 — 點擊操作體驗完整流程</div>
 
+<div id="backfill-mode-banner" style="display:none;align-items:center;gap:10px;padding:10px 16px;background:#fef3c7;border-bottom:1px solid #fde68a;font-size:13px;color:#92400e;position:sticky;top:0;z-index:20">
+  <span>✏️</span>
+  <span id="backfill-mode-text">正在補填某天的日報</span>
+  <button class="btn btn-outline btn-sm" style="margin-left:auto;white-space:nowrap" onclick="cancelBackfill()">取消補填</button>
+</div>
+
 <!-- ========== 首頁 ========== -->
 <div class="screen active" id="screen-home">
   <div class="top-bar">
@@ -151,6 +157,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
         <div style="font-size:12px;color:#1d4ed8">資料目前只存在這支手機，登入後自動備份雲端</div>
       </div>
       <button class="btn btn-primary btn-sm" onclick="goTo('screen-settings')" style="white-space:nowrap">登入</button>
+    </div>
+
+    <div id="home-missing-report-banner" style="display:none;align-items:center;gap:12px;margin-bottom:14px;padding:14px;background:#fef2f2;border:1px solid #fecaca;border-radius:12px">
+      <span style="font-size:22px">📋</span>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600;color:#b91c1c" id="home-missing-report-title">有 0 天尚未填寫日報</div>
+        <div style="font-size:12px;color:#b91c1c">最近 14 天內的缺件，點查看可以補填或標記停工</div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="goTo('screen-report-calendar')" style="white-space:nowrap">查看</button>
     </div>
 
     <button id="home-start-report-btn" class="btn btn-primary" onclick="goTo('screen-step1')" style="margin-bottom:12px;padding:18px 20px;font-size:17px">
@@ -267,6 +282,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
           <button class="btn btn-outline btn-sm" onclick="cancelSettingsCrewAdd()">取消</button>
         </div>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔧 細項工別</div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:8px">各大類別底下的細項工別，可以新增或刪除</p>
+      <div id="settings-crew-subtype-list"></div>
     </div>
 
     <div class="card">
@@ -395,7 +416,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   <div class="content fade-in">
 
     <div class="carry-forward-banner" style="background:var(--green-light);border:1px solid #A7F3D0;border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:13px;color:#065F46">
-      💡 已帶入昨日資料，勾選今天有進場的材料並修改數量
+      💡 勾選今天有進場的材料並填寫數量
     </div>
 
     <div class="cat-grid" id="mat-cats">
@@ -476,7 +497,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   <div class="content fade-in">
 
     <div class="carry-forward-banner" style="background:var(--green-light);border:1px solid #A7F3D0;border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:13px;color:#065F46">
-      💡 已帶入昨日資料
+      💡 勾選今天有使用的機具並填寫工時
     </div>
 
     <div class="cat-grid" id="equip-cats">
@@ -675,6 +696,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   <div class="top-bar">
     <div class="back" onclick="goTo('screen-home')">←</div>
     <h1>歷史日報</h1>
+    <div class="back" onclick="goTo('screen-report-calendar')" title="缺件行事曆">📅</div>
   </div>
   <div class="content fade-in">
     <div id="history-list-container"></div>
@@ -682,6 +704,36 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   <div class="bottom-nav">
     <div class="nav-item" onclick="goTo('screen-home')"><div class="nav-icon">🏠</div>首頁</div>
     <div class="nav-item active"><div class="nav-icon">📁</div>歷史日報</div>
+    <div class="nav-item" onclick="goTo('screen-settings')"><div class="nav-icon">⚙️</div>設定</div>
+  </div>
+</div>
+
+<!-- ========== 缺件行事曆 ========== -->
+<div class="screen" id="screen-report-calendar">
+  <div class="top-bar">
+    <div class="back" onclick="goTo('screen-history')">←</div>
+    <h1>日報行事曆</h1>
+  </div>
+  <div class="content fade-in">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="back" onclick="shiftCalendarMonth(-1)">←</div>
+      <div style="font-weight:600;font-size:15px" id="calendar-month-label">2026 年 7 月</div>
+      <div class="back" onclick="shiftCalendarMonth(1)">→</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:12px;color:var(--text3);text-align:center;margin-bottom:4px">
+      <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+    </div>
+    <div id="calendar-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px"></div>
+    <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;font-size:12px;color:var(--text2)">
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#dcfce7;margin-right:4px"></span>已填</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#fee2e2;margin-right:4px"></span>缺件</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--gray-light);margin-right:4px"></span>停工</span>
+    </div>
+    <div id="calendar-day-detail" style="display:none;margin-top:14px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px"></div>
+  </div>
+  <div class="bottom-nav">
+    <div class="nav-item" onclick="goTo('screen-home')"><div class="nav-icon">🏠</div>首頁</div>
+    <div class="nav-item" onclick="goTo('screen-history')"><div class="nav-icon">📁</div>歷史日報</div>
     <div class="nav-item" onclick="goTo('screen-settings')"><div class="nav-icon">⚙️</div>設定</div>
   </div>
 </div>
@@ -710,6 +762,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
     <div style="display:flex;gap:8px;margin-top:8px">
       <button class="btn btn-green" style="flex:1" onclick="sharePDF()" id="btn-share-pdf">📤 分享 PDF</button>
       <button class="btn btn-primary" style="flex:1" onclick="downloadPDF()" id="btn-download-pdf">📥 下載 PDF</button>
+      <button class="btn btn-primary" style="flex:1;display:none" id="btn-complete-backfill" onclick="completeBackfill()">✓ 完成補填</button>
     </div>
     <p style="text-align:center;font-size:12px;color:var(--text3);margin-top:8px">PDF 產生後可直接透過 LINE 分享或列印存檔</p>
   </div>
@@ -1707,11 +1760,13 @@ function collectReportData(){
   document.querySelectorAll('.mat-group').forEach(function(g){
     var cat=g.dataset.cat;data.materials[cat]=[];
     g.querySelectorAll('.item-row').forEach(function(row){
+      var vendorEl=row.querySelector('.item-vendor');
       data.materials[cat].push({
         name:row.querySelector('.item-name').textContent,
         unit:row.querySelector('.item-unit').textContent,
         checked:row.querySelector('.item-check').classList.contains('on'),
-        qty:row.querySelector('.item-qty').value
+        qty:row.querySelector('.item-qty').value,
+        vendor:vendorEl?vendorEl.value:''
       });
     });
   });
@@ -1720,11 +1775,13 @@ function collectReportData(){
   document.querySelectorAll('.equip-group').forEach(function(g){
     var cat=g.dataset.cat;data.equipment[cat]=[];
     g.querySelectorAll('.item-row').forEach(function(row){
+      var vendorEl=row.querySelector('.item-vendor');
       data.equipment[cat].push({
         name:row.querySelector('.item-name').textContent,
         unit:row.querySelector('.item-unit').textContent,
         checked:row.querySelector('.item-check').classList.contains('on'),
-        qty:row.querySelector('.item-qty').value
+        qty:row.querySelector('.item-qty').value,
+        vendor:vendorEl?vendorEl.value:''
       });
     });
   });
@@ -1783,7 +1840,10 @@ function populateReportUI(data){
         var qtyInput=document.createElement('input');qtyInput.className='item-qty';
         qtyInput.value=item.qty||'';qtyInput.placeholder='—';
         var unitSpan=document.createElement('span');unitSpan.className='item-unit';unitSpan.textContent=item.unit;
-        row.appendChild(check);row.appendChild(nameSpan);row.appendChild(qtyInput);row.appendChild(unitSpan);
+        var vendorInput=document.createElement('input');vendorInput.className='item-vendor';
+        vendorInput.value=item.vendor||'';vendorInput.placeholder='廠商';
+        vendorInput.style.cssText='width:64px;height:38px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;padding:0 6px;margin-left:4px';
+        row.appendChild(check);row.appendChild(nameSpan);row.appendChild(qtyInput);row.appendChild(unitSpan);row.appendChild(vendorInput);
         group.appendChild(row);
       });
     });
@@ -1803,7 +1863,10 @@ function populateReportUI(data){
         var qtyInput=document.createElement('input');qtyInput.className='item-qty';
         qtyInput.value=item.qty||'';qtyInput.placeholder='—';
         var unitSpan=document.createElement('span');unitSpan.className='item-unit';unitSpan.textContent=item.unit;
-        row.appendChild(check);row.appendChild(nameSpan);row.appendChild(qtyInput);row.appendChild(unitSpan);
+        var vendorInput=document.createElement('input');vendorInput.className='item-vendor';
+        vendorInput.value=item.vendor||'';vendorInput.placeholder='廠商';
+        vendorInput.style.cssText='width:64px;height:38px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;padding:0 6px;margin-left:4px';
+        row.appendChild(check);row.appendChild(nameSpan);row.appendChild(qtyInput);row.appendChild(unitSpan);row.appendChild(vendorInput);
         group.appendChild(row);
       });
     });
@@ -1845,6 +1908,18 @@ function updateHomeInfo(){
   if(rd)rd.textContent=today+'（'+dow+'）';
 }
 
+function updateMissingReportBanner(){
+  var banner=document.getElementById('home-missing-report-banner');
+  if(!banner)return;
+  var missing=findMissingReportDates(14);
+  if(missing.length===0){
+    banner.style.display='none';
+    return;
+  }
+  banner.style.display='flex';
+  document.getElementById('home-missing-report-title').textContent='有 '+missing.length+' 天尚未填寫日報';
+}
+
 // ===== HTML 跳脫 =====
 function escHtml(s){
   var d=document.createElement('div');d.textContent=s;return d.innerHTML;
@@ -1859,6 +1934,56 @@ function loadSettingsUI(){
   if(inputs[1])inputs[1].value=s.companyName;
   if(inputs[2])inputs[2].value=s.startDate;
   if(inputs[3])inputs[3].value=s.endDate;
+  // 細項工別（可編輯）
+  var crewSubtypeList=document.getElementById('settings-crew-subtype-list');
+  if(crewSubtypeList){
+    crewSubtypeList.innerHTML='';
+    if(!s.crewSubtypes)s.crewSubtypes=JSON.parse(JSON.stringify(CREW_SUBTYPES));
+    CREW_CATEGORIES.forEach(function(cat){
+      var title=document.createElement('div');
+      title.style.cssText='font-size:13px;font-weight:600;color:var(--text2);margin:10px 0 4px';
+      title.textContent=cat.icon+' '+cat.name;
+      crewSubtypeList.appendChild(title);
+      var tagsWrap=document.createElement('div');
+      (s.crewSubtypes[cat.id]||[]).forEach(function(name){
+        var tag=document.createElement('span');
+        tag.className='tag on';
+        tag.textContent=name;
+        tag.onclick=function(){
+          if(confirm('刪除「'+name+'」？已經填過的紀錄不會被刪除，之後只是不會再出現在清單裡。')){
+            removeCrewSubtype(cat.id,name);
+            loadSettingsUI();
+          }
+        };
+        tagsWrap.appendChild(tag);
+      });
+      crewSubtypeList.appendChild(tagsWrap);
+      var addBtn=document.createElement('div');
+      addBtn.className='add-btn';
+      addBtn.style.cssText='margin-top:6px;margin-bottom:4px';
+      addBtn.textContent='＋ 新增細項工別';
+      var addForm=document.createElement('div');
+      addForm.style.cssText='display:none;gap:8px;margin-bottom:8px';
+      var addInput=document.createElement('input');
+      addInput.placeholder='細項工別名稱';
+      addInput.style.cssText='flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px';
+      var addConfirm=document.createElement('button');
+      addConfirm.className='btn btn-primary btn-sm';
+      addConfirm.textContent='確認';
+      addConfirm.onclick=function(){
+        if(addCrewSubtype(cat.id,addInput.value)){
+          loadSettingsUI();
+        }else{
+          alert('請輸入名稱，且不能跟現有的重複');
+        }
+      };
+      addBtn.onclick=function(){addBtn.style.display='none';addForm.style.display='flex';addInput.focus()};
+      addForm.appendChild(addInput);
+      addForm.appendChild(addConfirm);
+      crewSubtypeList.appendChild(addBtn);
+      crewSubtypeList.appendChild(addForm);
+    });
+  }
   // 材料清單（唯讀）
   var matList=document.getElementById('settings-mat-list');
   if(matList&&s.materials){
@@ -2037,19 +2162,19 @@ function transformPreviousReport(prevData,settings){
   if(prevData.crew){
     draft.crew=prevData.crew.map(function(c){return{name:c.name,count:c.count||0}});
   }
-  // 材料：帶入勾選狀態，清空數量
+  // 材料：帶入品項清單，勾選狀態每天重新開始
   if(prevData.materials){
     Object.keys(prevData.materials).forEach(function(cat){
       draft.materials[cat]=prevData.materials[cat].map(function(item){
-        return{name:item.name,unit:item.unit,checked:item.checked||false,qty:''};
+        return{name:item.name,unit:item.unit,checked:false,qty:'',vendor:''};
       });
     });
   }
-  // 機具：帶入勾選狀態，清空數量
+  // 機具：帶入品項清單，勾選狀態每天重新開始
   if(prevData.equipment){
     Object.keys(prevData.equipment).forEach(function(cat){
       draft.equipment[cat]=prevData.equipment[cat].map(function(item){
-        return{name:item.name,unit:item.unit,checked:item.checked||false,qty:''};
+        return{name:item.name,unit:item.unit,checked:false,qty:'',vendor:''};
       });
     });
   }
@@ -2464,11 +2589,17 @@ function goTo(id){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active')});
   document.getElementById(id).classList.add('active');
   window.scrollTo(0,0);
-  if(id==='screen-home'){updateWeeklyStats();}
+  if(id==='screen-home'){updateWeeklyStats();updateMissingReportBanner();}
   if(id==='screen-step2'){renderCrewCategories();switchCrewCat(currentCrewCat);updateCrewTotal();}
+  if(id==='screen-settings'){loadSettingsUI();}
   if(id==='screen-step5'){updateLogList();}
   if(id==='screen-history'){updateHistoryList();}
-  if(id==='screen-preview'){renderPreview();}
+  if(id==='screen-report-calendar'){initCalendarView();document.getElementById('calendar-day-detail').style.display='none';}
+  if(id==='screen-preview'){
+    renderPreview();
+    var backfillBtn=document.getElementById('btn-complete-backfill');
+    if(backfillBtn)backfillBtn.style.display=isBackfillMode?'block':'none';
+  }
 }
 
 // 頁面載入時初始化
@@ -2579,6 +2710,29 @@ var CREW_SUBTYPES={
 };
 var currentCrewCat='structure';
 
+function getCrewSubtypes(catId){
+  var settings=loadSettings();
+  if(!settings.crewSubtypes)settings.crewSubtypes=JSON.parse(JSON.stringify(CREW_SUBTYPES));
+  return settings.crewSubtypes[catId]||[];
+}
+function addCrewSubtype(catId,name){
+  name=(name||'').trim();
+  if(!name)return false;
+  var settings=loadSettings();
+  if(!settings.crewSubtypes)settings.crewSubtypes=JSON.parse(JSON.stringify(CREW_SUBTYPES));
+  if(!settings.crewSubtypes[catId])settings.crewSubtypes[catId]=[];
+  if(settings.crewSubtypes[catId].indexOf(name)!==-1)return false;
+  settings.crewSubtypes[catId].push(name);
+  saveSettings(settings);
+  return true;
+}
+function removeCrewSubtype(catId,name){
+  var settings=loadSettings();
+  if(!settings.crewSubtypes)return;
+  settings.crewSubtypes[catId]=(settings.crewSubtypes[catId]||[]).filter(function(n){return n!==name});
+  saveSettings(settings);
+}
+
 function renderCrewCategories(){
   var wrap=document.getElementById('crew-cats');
   if(!wrap)return;
@@ -2620,11 +2774,201 @@ function saveCrewEntries(records){
   updateCrewTotal();
 }
 
+// ===== 停工紀錄 =====
+function loadStoppages(){
+  return loadFromStore('stoppages')||[];
+}
+function saveStoppages(records){
+  saveToStore('stoppages',records);
+}
+function markStoppage(dateStr,reason){
+  reason=(reason||'').trim();
+  if(!reason)return false;
+  var records=loadStoppages().filter(function(s){return s.date!==dateStr});
+  records.push({date:dateStr,reason:reason,markedAt:new Date().toISOString()});
+  saveStoppages(records);
+  return true;
+}
+function unmarkStoppage(dateStr){
+  var records=loadStoppages().filter(function(s){return s.date!==dateStr});
+  saveStoppages(records);
+}
+function getStoppage(dateStr){
+  return loadStoppages().find(function(s){return s.date===dateStr})||null;
+}
+
+// ===== 缺件掃描 =====
+function findReportDayStatus(dateStr){
+  var settings=loadSettings();
+  if(dateStr>getTodayStr())return 'future';
+  if(dateStr<settings.startDate)return 'before-start';
+  if(loadReport(dateStr))return 'filled';
+  if(getStoppage(dateStr))return 'stoppage';
+  if(dateStr<getTodayStr())return 'missing';
+  return 'today-pending';
+}
+function findMissingReportDates(daysBack){
+  var result=[];
+  var today=new Date(getTodayStr());
+  for(var i=1;i<=daysBack;i++){
+    var d=new Date(today);d.setDate(today.getDate()-i);
+    var ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    if(findReportDayStatus(ds)==='missing')result.unshift(ds);
+  }
+  return result;
+}
+
+// ===== 行事曆 =====
+var calendarViewDate=null; // {year, month(0-based)}
+
+function initCalendarView(){
+  var today=new Date(getTodayStr());
+  calendarViewDate={year:today.getFullYear(),month:today.getMonth()};
+  renderCalendar();
+}
+
+function shiftCalendarMonth(delta){
+  if(!calendarViewDate)initCalendarView();
+  var d=new Date(calendarViewDate.year,calendarViewDate.month+delta,1);
+  calendarViewDate={year:d.getFullYear(),month:d.getMonth()};
+  renderCalendar();
+  document.getElementById('calendar-day-detail').style.display='none';
+}
+
+function renderCalendar(){
+  if(!calendarViewDate)initCalendarView();
+  var label=document.getElementById('calendar-month-label');
+  if(label)label.textContent=calendarViewDate.year+' 年 '+(calendarViewDate.month+1)+' 月';
+  var grid=document.getElementById('calendar-grid');
+  if(!grid)return;
+  grid.innerHTML='';
+  var firstDay=new Date(calendarViewDate.year,calendarViewDate.month,1);
+  var daysInMonth=new Date(calendarViewDate.year,calendarViewDate.month+1,0).getDate();
+  var startWeekday=firstDay.getDay();
+  for(var i=0;i<startWeekday;i++){
+    grid.appendChild(document.createElement('div'));
+  }
+  var statusStyle={
+    'filled':{bg:'#dcfce7',color:'#166534',clickable:true},
+    'missing':{bg:'#fee2e2',color:'#b91c1c',clickable:true},
+    'stoppage':{bg:'#f1efe8',color:'#5f5e5a',clickable:true},
+    'today-pending':{bg:'#eff6ff',color:'#1d4ed8',clickable:true},
+    'future':{bg:'transparent',color:'#b4b2a9',clickable:false},
+    'before-start':{bg:'transparent',color:'#b4b2a9',clickable:false}
+  };
+  for(var day=1;day<=daysInMonth;day++){
+    var ds=calendarViewDate.year+'-'+String(calendarViewDate.month+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+    var status=findReportDayStatus(ds);
+    var style=statusStyle[status]||statusStyle['future'];
+    var cell=document.createElement('div');
+    cell.style.cssText='aspect-ratio:1;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;background:'+style.bg+';color:'+style.color+(style.clickable?';cursor:pointer':'');
+    cell.textContent=day;
+    if(style.clickable){
+      (function(dateStr){cell.onclick=function(){showCalendarDayDetail(dateStr)}})(ds);
+    }
+    grid.appendChild(cell);
+  }
+}
+
+function showCalendarDayDetail(dateStr){
+  var detail=document.getElementById('calendar-day-detail');
+  if(!detail)return;
+  var status=findReportDayStatus(dateStr);
+  var dow=getDayOfWeek(dateStr);
+  var html='<p style="font-size:13px;font-weight:600;margin:0 0 2px">'+dateStr+'（'+dow+'）</p>';
+  if(status==='filled'){
+    html+='<p style="font-size:12px;color:var(--text2);margin:0 0 10px">已填寫日報</p>';
+    html+='<button class="btn btn-outline" style="width:100%" onclick="viewHistoryDetail(\''+dateStr+'\')">查看明細</button>';
+  }else if(status==='stoppage'){
+    var s=getStoppage(dateStr);
+    html+='<p style="font-size:12px;color:var(--text2);margin:0 0 4px">停工原因：'+escHtml(s?s.reason:'')+'</p>';
+    html+='<button class="btn btn-outline" style="width:100%" onclick="cancelStoppageFromCalendar(\''+dateStr+'\')">取消停工標記</button>';
+  }else if(status==='missing'){
+    html+='<p style="font-size:12px;color:var(--text2);margin:0 0 10px">尚未填寫日報</p>';
+    html+='<div style="display:flex;gap:8px">';
+    html+='<button class="btn btn-outline" style="flex:1" onclick="markStoppageFromCalendar(\''+dateStr+'\')">標記停工</button>';
+    html+='<button class="btn btn-primary" style="flex:1" onclick="startBackfillForDate(\''+dateStr+'\')">補填這天</button>';
+    html+='</div>';
+  }else{
+    html+='<p style="font-size:12px;color:var(--text2);margin:0">今天尚未填寫，稍後在首頁開始填寫即可</p>';
+  }
+  detail.innerHTML=html;
+  detail.style.display='block';
+}
+
+function markStoppageFromCalendar(dateStr){
+  var reason=prompt('請輸入停工原因（例如：颱風停工）');
+  if(reason===null)return;
+  if(markStoppage(dateStr,reason)){
+    renderCalendar();
+    updateMissingReportBanner();
+    showCalendarDayDetail(dateStr);
+  }else{
+    alert('請輸入停工原因');
+  }
+}
+
+function cancelStoppageFromCalendar(dateStr){
+  if(!confirm('取消這天的停工標記？取消後會恢復成缺件狀態。'))return;
+  unmarkStoppage(dateStr);
+  renderCalendar();
+  updateMissingReportBanner();
+  showCalendarDayDetail(dateStr);
+}
+
+// ===== 補填流程 =====
+var isBackfillMode=false;
+var backfillOriginalDate=null;
+
+function startBackfillForDate(dateStr){
+  backfillOriginalDate=getTodayStr();
+  currentReportDate=dateStr;
+  isBackfillMode=true;
+  updateBackfillBanner();
+  goTo('screen-step1');
+}
+
+function updateBackfillBanner(){
+  var banner=document.getElementById('backfill-mode-banner');
+  if(!banner)return;
+  if(isBackfillMode){
+    banner.style.display='flex';
+    document.getElementById('backfill-mode-text').textContent='正在補填 '+currentReportDate+' 的日報';
+  }else{
+    banner.style.display='none';
+  }
+}
+
+function exitBackfillMode(markCompleted){
+  if(!isBackfillMode)return;
+  if(markCompleted){
+    var data=loadReport(currentReportDate)||collectReportData();
+    data.backfilled=true;
+    data.backfilledAt=new Date().toISOString();
+    saveReport(currentReportDate,data);
+  }
+  isBackfillMode=false;
+  currentReportDate=backfillOriginalDate||getTodayStr();
+  backfillOriginalDate=null;
+  updateBackfillBanner();
+}
+
+function cancelBackfill(){
+  if(!confirm('取消補填？已經填的內容會保留在那一天，之後可以再回來繼續。'))return;
+  exitBackfillMode(false);
+  goTo('screen-report-calendar');
+}
+
+function completeBackfill(){
+  exitBackfillMode(true);
+  goTo('screen-report-calendar');
+}
+
 function renderCrewSubtypeList(catId){
   var area=document.getElementById('crew-list-area');
   if(!area)return;
   area.innerHTML='';
-  var subtypes=CREW_SUBTYPES[catId]||[];
+  var subtypes=getCrewSubtypes(catId);
   var entries=loadCrewEntries().filter(function(e){return e.date===currentReportDate&&e.category===catId});
   subtypes.forEach(function(subtype){
     var subtypeEntries=entries.filter(function(e){return e.subtype===subtype});
@@ -2637,6 +2981,40 @@ function renderCrewSubtypeList(catId){
       area.appendChild(buildAddAnotherRow(catId,subtype));
     }
   });
+  area.appendChild(buildAddCrewSubtypeRow(catId));
+}
+
+function buildAddCrewSubtypeRow(catId){
+  var wrap=document.createElement('div');
+  wrap.style.cssText='padding:10px 4px';
+  var link=document.createElement('div');
+  link.style.cssText='color:var(--primary);font-size:14px;cursor:pointer;text-align:center';
+  link.textContent='＋ 新增細項工別';
+  var form=document.createElement('div');
+  form.style.cssText='display:none;gap:8px;margin-top:8px';
+  var input=document.createElement('input');
+  input.placeholder='細項工別名稱';
+  input.style.cssText='flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px';
+  var confirmBtn=document.createElement('button');
+  confirmBtn.className='btn btn-primary btn-sm';
+  confirmBtn.textContent='確認';
+  confirmBtn.onclick=function(){
+    if(addCrewSubtype(catId,input.value)){
+      renderCrewSubtypeList(catId);
+    }else{
+      alert('請輸入名稱，且不能跟現有的重複');
+    }
+  };
+  link.onclick=function(){
+    link.style.display='none';
+    form.style.display='flex';
+    input.focus();
+  };
+  form.appendChild(input);
+  form.appendChild(confirmBtn);
+  wrap.appendChild(link);
+  wrap.appendChild(form);
+  return wrap;
 }
 
 function buildCrewSubtypeRow(catId,subtype){
@@ -2846,10 +3224,16 @@ function confirmAddItem(type){
   var unitSpan=document.createElement('span');
   unitSpan.className='item-unit';
   unitSpan.textContent=unit;
+  var vendorInput=document.createElement('input');
+  vendorInput.className='item-vendor';
+  vendorInput.value='';
+  vendorInput.placeholder='廠商';
+  vendorInput.style.cssText='width:64px;height:38px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;padding:0 6px;margin-left:4px';
   row.appendChild(check);
   row.appendChild(nameSpan);
   row.appendChild(qtyInput);
   row.appendChild(unitSpan);
+  row.appendChild(vendorInput);
   target.appendChild(row);
   cancelAddItem(type);
 }
@@ -3209,6 +3593,12 @@ function showHistoryDetail(dateStr,rpt){
   if(titleEl)titleEl.textContent=dateStr+'（'+dow+'）';
   var content=document.getElementById('history-detail-content');
   content.innerHTML='';
+  if(rpt.backfilled){
+    var backfillNote=document.createElement('div');
+    backfillNote.style.cssText='background:#fef3c7;color:#92400e;font-size:12px;padding:8px 12px;border-radius:8px;margin-bottom:10px';
+    backfillNote.textContent='本日日報於 '+(rpt.backfilledAt?rpt.backfilledAt.slice(0,10):'之後')+' 補填';
+    content.appendChild(backfillNote);
+  }
 
   // 天氣
   if(rpt.weather){
@@ -3373,7 +3763,7 @@ function renderPreview(){
   var dow=getDayOfWeek(currentReportDate);
   var calDays=daysBetween(settings.startDate,currentReportDate)+1;
   var remainDays=daysBetween(currentReportDate,settings.endDate);
-  var logs=loadLogRecords().filter(function(r){return r.date===currentReportDate});
+  var logs=[];
 
   var pages=[];
 
@@ -3382,6 +3772,9 @@ function renderPreview(){
   // 標題
   h+='<div class="pdf-title">營 建 工 程 管 理 日 報 表</div>';
   h+='<div class="pdf-company">'+escHtml(settings.companyName)+'</div>';
+  if(data.backfilled){
+    h+='<div style="text-align:center;font-size:11px;color:#92400e;margin-bottom:4px">（本日報為'+(data.backfilledAt?data.backfilledAt.slice(0,10):'')+'補填）</div>';
+  }
 
   // 頁面內容區
   h+='<div class="pdf-body">';
@@ -3398,21 +3791,26 @@ function renderPreview(){
   h+='<td style="font-weight:600;background:#f0f0f0">剩餘天數</td><td>'+remainDays+' 天</td></tr>';
   h+='</table>';
 
-  // 人員：橫向表格
+  // 工別紀錄：逐筆列出
+  var crewEntries=data.crewEntries||[];
   var crewTotal=0;
-  if(data.crew)data.crew.forEach(function(c){crewTotal+=(c.count||0)});
+  crewEntries.forEach(function(e){crewTotal+=(e.headcount||0)});
   h+='<table class="pdf-table" style="margin-bottom:6px">';
-  h+='<tr><td colspan="'+(data.crew.length+1)+'" class="pdf-section">今日入場人員</td></tr>';
-  h+='<tr style="background:#f0f0f0">';
-  data.crew.forEach(function(c){
-    h+='<th style="text-align:center">'+escHtml(c.name)+'</th>';
-  });
-  h+='<th style="text-align:center;background:#ddd">合計</th></tr>';
-  h+='<tr>';
-  data.crew.forEach(function(c){
-    h+='<td style="text-align:center;font-size:11px">'+(c.count||0)+' 人</td>';
-  });
-  h+='<td style="text-align:center;font-weight:700;font-size:11px;background:#f5f5f5">'+crewTotal+' 人</td></tr>';
+  h+='<tr><td colspan="5" class="pdf-section">今日工別紀錄（合計 '+crewTotal+' 人）</td></tr>';
+  h+='<tr style="background:#f0f0f0"><th>工別</th><th style="width:10%;text-align:center">人數</th><th style="width:20%">位置</th><th style="width:15%">廠商</th><th>工作內容</th></tr>';
+  if(crewEntries.length===0){
+    h+='<tr><td colspan="5" style="text-align:center;color:#999;padding:10px">今日尚無工別紀錄</td></tr>';
+  }else{
+    crewEntries.forEach(function(e){
+      h+='<tr>';
+      h+='<td>'+escHtml(e.subtype||'')+'</td>';
+      h+='<td style="text-align:center">'+(e.headcount||0)+'</td>';
+      h+='<td>'+escHtml(e.location||'')+'</td>';
+      h+='<td>'+escHtml(e.contractor||'—')+'</td>';
+      h+='<td style="font-size:11px">'+escHtml(e.workToday||'')+'</td>';
+      h+='</tr>';
+    });
+  }
   h+='</table>';
 
   // 材料 + 機具 並排表格
@@ -3434,19 +3832,19 @@ function renderPreview(){
 
   var maxRows=Math.max(matItems.length,equipItems.length,1);
   h+='<table class="pdf-table" style="margin-bottom:6px">';
-  h+='<tr><td colspan="2" class="pdf-section" style="width:50%">營建材料</td><td colspan="2" class="pdf-section" style="width:50%">機具設備</td></tr>';
-  h+='<tr style="background:#f0f0f0"><th>品名</th><th style="width:15%;text-align:right">數量</th><th>品名</th><th style="width:15%;text-align:right">數量</th></tr>';
+  h+='<tr><td colspan="3" class="pdf-section" style="width:50%">營建材料</td><td colspan="3" class="pdf-section" style="width:50%">機具設備</td></tr>';
+  h+='<tr style="background:#f0f0f0"><th>品名</th><th style="width:13%;text-align:right">數量</th><th style="width:12%">廠商</th><th>品名</th><th style="width:13%;text-align:right">數量</th><th style="width:12%">廠商</th></tr>';
   for(var i=0;i<maxRows;i++){
     h+='<tr>';
     if(matItems[i]){
-      h+='<td>'+escHtml(matItems[i].name)+'</td><td style="text-align:right">'+(matItems[i].qty||'—')+' '+escHtml(matItems[i].unit)+'</td>';
+      h+='<td>'+escHtml(matItems[i].name)+'</td><td style="text-align:right">'+(matItems[i].qty||'—')+' '+escHtml(matItems[i].unit)+'</td><td style="font-size:11px">'+escHtml(matItems[i].vendor||'—')+'</td>';
     }else{
-      h+='<td></td><td></td>';
+      h+='<td></td><td></td><td></td>';
     }
     if(equipItems[i]){
-      h+='<td>'+escHtml(equipItems[i].name)+'</td><td style="text-align:right">'+(equipItems[i].qty||'—')+' '+escHtml(equipItems[i].unit)+'</td>';
+      h+='<td>'+escHtml(equipItems[i].name)+'</td><td style="text-align:right">'+(equipItems[i].qty||'—')+' '+escHtml(equipItems[i].unit)+'</td><td style="font-size:11px">'+escHtml(equipItems[i].vendor||'—')+'</td>';
     }else{
-      h+='<td></td><td></td>';
+      h+='<td></td><td></td><td></td>';
     }
     h+='</tr>';
   }
@@ -3476,54 +3874,6 @@ function renderPreview(){
   h+='<div class="pdf-footer">第 1 頁</div>';
   h+='</div>'; // close pdf-body
   pages.push(h);
-
-  // ===== 第二頁（及後續）：施工紀錄 =====
-  if(logs.length>0){
-    var h2='';
-    h2+='<div class="pdf-title">營 建 工 程 管 理 日 報 表</div>';
-    h2+='<div class="pdf-company">'+escHtml(settings.companyName)+'</div>';
-    h2+='<div class="pdf-body">';
-    h2+='<div class="pdf-page-header">施工紀錄明細　'+currentReportDate+'（'+dow+'）　'+escHtml(settings.projectName)+'</div>';
-
-    // 摘要表
-    h2+='<table class="pdf-table" style="margin-bottom:6px">';
-    h2+='<tr><td colspan="7" class="pdf-section">施工紀錄摘要</td></tr>';
-    h2+='<tr style="background:#f0f0f0"><th>施工項目</th><th>負責人</th><th>施工單位</th><th style="text-align:center">時段</th><th style="text-align:center">工時</th><th style="text-align:center">累計</th><th>代工廠商</th></tr>';
-    logs.forEach(function(rec){
-      var period=[];
-      if(rec.am)period.push('上午');
-      if(rec.pm)period.push('下午');
-      var periodStr=period.length===2?'全天':(period[0]||'—');
-      h2+='<tr>';
-      h2+='<td>'+escHtml(rec.title||'')+'</td>';
-      h2+='<td>'+escHtml(rec.person||'')+'</td>';
-      h2+='<td>'+escHtml(rec.unit||'')+'</td>';
-      h2+='<td style="text-align:center">'+periodStr+'</td>';
-      h2+='<td style="text-align:center">'+(rec.hours||0)+' hr</td>';
-      h2+='<td style="text-align:center">'+(rec.totalHours||0)+' hr</td>';
-      h2+='<td>'+(rec.subcontractor?'<span style="color:#c00;font-weight:700">'+escHtml(rec.subcontractorName||'是')+'</span>':'—')+'</td>';
-      h2+='</tr>';
-    });
-    h2+='</table>';
-
-    // 明細表
-    h2+='<table class="pdf-table">';
-    h2+='<tr><td colspan="4" class="pdf-section">各項施工內容明細</td></tr>';
-    h2+='<tr style="background:#f0f0f0"><th style="width:18%">施工項目</th><th style="width:18%">施工位置</th><th>今日工作內容</th><th>明日工作內容</th></tr>';
-    logs.forEach(function(rec){
-      h2+='<tr>';
-      h2+='<td>'+escHtml(rec.title||'')+'</td>';
-      h2+='<td>'+escHtml(rec.location||'')+'</td>';
-      h2+='<td>'+escHtml(rec.workToday||'')+'</td>';
-      h2+='<td>'+escHtml(rec.workTomorrow||'')+'</td>';
-      h2+='</tr>';
-    });
-    h2+='</table>';
-
-    h2+='<div class="pdf-footer">第 2 頁</div>';
-    h2+='</div>'; // close pdf-body
-    pages.push(h2);
-  }
 
   // ===== 渲染所有頁面 =====
   var container=document.getElementById('pdf-pages-container');

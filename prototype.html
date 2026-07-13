@@ -144,16 +144,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
       </div>
     </div>
 
-    <div id="home-login-banner" style="display:none;align-items:center;gap:12px;margin-bottom:14px;padding:14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px">
-      <span style="font-size:22px">☁️</span>
-      <div style="flex:1">
-        <div style="font-size:14px;font-weight:600;color:#1d4ed8">尚未登入</div>
-        <div style="font-size:12px;color:#1d4ed8">資料目前只存在這支手機，登入後自動備份雲端</div>
-      </div>
-      <button class="btn btn-primary btn-sm" onclick="goTo('screen-settings')" style="white-space:nowrap">登入</button>
-    </div>
-
-    <button id="home-start-report-btn" class="btn btn-primary" onclick="goTo('screen-step1')" style="margin-bottom:12px;padding:18px 20px;font-size:17px">
+    <button class="btn btn-primary" onclick="goTo('screen-step1')" style="margin-bottom:12px;padding:18px 20px;font-size:17px">
       開始填寫今日日報 →
       <div style="font-size:12px;font-weight:400;opacity:0.85;margin-top:2px" id="home-report-date">2026-06-27（五）</div>
     </button>
@@ -344,7 +335,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   </div>
 </div>
 
-<!-- ========== Step 2: 工別紀錄 ========== -->
+<!-- ========== Step 2: 人員 ========== -->
 <div class="screen" id="screen-step2">
   <div class="top-bar">
     <div class="back" onclick="goTo('screen-step1')">←</div>
@@ -357,23 +348,69 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
     <div class="progress-dot"></div>
     <div class="progress-dot"></div>
   </div>
-  <div class="step-label">步驟 2 / 5 — 工別紀錄</div>
+  <div class="step-label">步驟 2 / 5 — 今日人員</div>
   <div class="content fade-in">
 
-    <div class="cat-grid" id="crew-cats"></div>
 
-    <div id="crew-cat-label" style="font-size:13px;color:var(--text2);margin:8px 0;font-weight:500"></div>
+    <div class="crew-row">
+      <span class="crew-label">裝修工程</span>
+      <div class="crew-ctrl">
+        <div class="crew-btn" onclick="adjustCrew(this,-1)">−</div>
+        <span class="crew-num">12</span>
+        <div class="crew-btn" onclick="adjustCrew(this,1)">＋</div>
+      </div>
+    </div>
+    <div class="crew-row">
+      <span class="crew-label">結構工程</span>
+      <div class="crew-ctrl">
+        <div class="crew-btn" onclick="adjustCrew(this,-1)">−</div>
+        <span class="crew-num">8</span>
+        <div class="crew-btn" onclick="adjustCrew(this,1)">＋</div>
+      </div>
+    </div>
+    <div class="crew-row">
+      <span class="crew-label">基礎工程</span>
+      <div class="crew-ctrl">
+        <div class="crew-btn" onclick="adjustCrew(this,-1)">−</div>
+        <span class="crew-num">5</span>
+        <div class="crew-btn" onclick="adjustCrew(this,1)">＋</div>
+      </div>
+    </div>
+    <div class="crew-row">
+      <span class="crew-label">機電工程</span>
+      <div class="crew-ctrl">
+        <div class="crew-btn" onclick="adjustCrew(this,-1)">−</div>
+        <span class="crew-num">3</span>
+        <div class="crew-btn" onclick="adjustCrew(this,1)">＋</div>
+      </div>
+    </div>
+    <div class="crew-row">
+      <span class="crew-label">假設工程</span>
+      <div class="crew-ctrl">
+        <div class="crew-btn" onclick="adjustCrew(this,-1)">−</div>
+        <span class="crew-num">2</span>
+        <div class="crew-btn" onclick="adjustCrew(this,1)">＋</div>
+      </div>
+    </div>
 
-    <div id="crew-list-area"></div>
+    <div class="add-btn" id="crew-add-btn" onclick="showAddCrewForm()">＋ 新增工種</div>
+    <div id="crew-add-form" style="display:none;margin-top:8px;padding:12px;background:var(--white);border:1.5px solid var(--primary);border-radius:var(--radius)">
+      <div style="font-size:14px;font-weight:600;margin-bottom:8px">新增工種</div>
+      <input id="crew-new-name" type="text" placeholder="輸入工種名稱" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;margin-bottom:8px">
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="confirmAddCrew()" style="flex:1">確認</button>
+        <button class="btn btn-outline btn-sm" onclick="cancelAddCrew()" style="flex:1">取消</button>
+      </div>
+    </div>
 
     <div style="background:var(--gray-light);border-radius:var(--radius);padding:12px 14px;margin-top:12px;text-align:center">
       <span style="font-size:13px;color:var(--text2)">今日總人數</span>
-      <div style="font-size:28px;font-weight:700;color:var(--primary)" id="crew-total-count">0</div>
+      <div style="font-size:28px;font-weight:700;color:var(--primary)">30</div>
     </div>
 
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="btn btn-outline" onclick="goTo('screen-step1')" style="flex:1">← 上一步</button>
-      <button class="btn btn-primary" onclick="goToStep3IfValid()" style="flex:1">下一步 →</button>
+      <button class="btn btn-primary" onclick="goTo('screen-step3')" style="flex:1">下一步 →</button>
     </div>
   </div>
 </div>
@@ -543,8 +580,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
     <div class="progress-dot done"></div>
     <div class="progress-dot active"></div>
   </div>
-  <div class="step-label">步驟 5 / 5 — 備註</div>
+  <div class="step-label">步驟 5 / 5 — 施工紀錄與備註</div>
   <div class="content fade-in">
+
+    <div class="card">
+      <div class="card-title">📝 今日施工紀錄</div>
+      <p id="log-list-summary" style="font-size:13px;color:var(--text2);margin-bottom:10px"></p>
+      <div id="log-list-container"></div>
+      <button class="btn btn-outline" onclick="openLogForm()" style="width:100%;margin-top:8px">＋ 新增施工紀錄</button>
+    </div>
 
     <div class="card">
       <div class="card-title">📎 備註</div>
@@ -769,21 +813,8 @@ var DEFAULT_SETTINGS={
   }
 };
 
-// ===== LINE Login 背景診斷與 PKCE 補救 =====
-// 平常關閉，但可用網址參數 ?debug=1 臨時打開診斷面板（會記在 localStorage，
-// 所以跳去 LINE 授權再跳回來還是看得到）。方便請別人在他們手機上點這個
-// 連結測試時，把診斷面板截圖回報，不用自己拿到那支手機才能除錯。
-// 用 ?debug=0 可以關掉。
-var LINE_LOGIN_DEBUG=(function(){
-  try{
-    var qp=new URLSearchParams(window.location.search).get('debug');
-    if(qp==='1'){localStorage.setItem('LINE_LOGIN_DEBUG','1');return true;}
-    if(qp==='0'){localStorage.removeItem('LINE_LOGIN_DEBUG');return false;}
-    if(localStorage.getItem('LINE_LOGIN_DEBUG')==='1')return true;
-  }catch(e){}
-  return false;
-})();
-var LINE_LOGIN_BUILD='v2026-07-02g';
+// ===== LINE Login 流程檢查哨系統 =====
+var LINE_LOGIN_BUILD='v2026-07-02h';
 var _lineCP={log:[],ss:[]};
 function _cp(id,msg,data){
   var entry={id:id,msg:msg,t:new Date().toLocaleTimeString(),data:data||null};
@@ -791,24 +822,6 @@ function _cp(id,msg,data){
   // 同時寫 localStorage 和 sessionStorage 做對照
   try{localStorage.setItem('_lineCP',JSON.stringify(_lineCP.log));}catch(e){}
   try{sessionStorage.setItem('_lineCP',JSON.stringify(_lineCP.log));}catch(e){}
-}
-function isPkceVerifierKey(key){
-  return !!key&&(key.indexOf('code-verifier')>=0||key.indexOf('verifier')>=0||key.indexOf('pkce')>=0);
-}
-function clearPkceVerifierKeys(){
-  var removed=[];
-  try{
-    var keys=[];
-    for(var i=0;i<localStorage.length;i++){
-      var k=localStorage.key(i);
-      if(isPkceVerifierKey(k))keys.push(k);
-    }
-    keys.forEach(function(k){
-      localStorage.removeItem(k);
-      removed.push(k);
-    });
-  }catch(e){}
-  return removed;
 }
 // 頁面載入時，先讀取跳轉前留下的 checkpoint（如果有的話）
 (function(){
@@ -838,8 +851,12 @@ function clearPkceVerifierKeys(){
       ];
       for(var i=0;i<keys.length;i++){
         var existing=localStorage.getItem(keys[i]);
-        localStorage.setItem(keys[i],cv);
-        _cp('CP6a','cv 從 URL 寫入 localStorage',{key:keys[i],hadExisting:!!existing,existing8:existing?existing.substring(0,8):'',cv8:cv.substring(0,8)});
+        if(!existing){
+          localStorage.setItem(keys[i],cv);
+          _cp('CP6a','cv 從 URL 還原到 localStorage',{key:keys[i],cv8:cv.substring(0,8)});
+        }else{
+          _cp('CP6b','localStorage 已有 cv（未覆蓋）',{key:keys[i],existing8:existing.substring(0,8),url8:cv.substring(0,8)});
+        }
       }
     }
     // 掃描 localStorage 中所有 code-verifier 相關 key
@@ -921,7 +938,7 @@ async function refreshSupabaseStatus(){
       if(recheckBtn)recheckBtn.style.display='none';
       if(loginArea)loginArea.style.display='none';
     }else{
-      updateSupabaseStatus('尚未登入，現在使用本機保存。',false);
+      updateSupabaseStatus('尚未登入，現在使用本機保存。('+LINE_LOGIN_BUILD+')',false);
       if(logoutBtn)logoutBtn.style.display='none';
       if(recheckBtn)recheckBtn.style.display='block';
       if(loginArea)loginArea.style.display='block';
@@ -953,29 +970,24 @@ async function doSupabaseLogout(){
 }
 
 async function signInWithLine(){
-  var inAppBrowser=detectInAppBrowser();
-  if(inAppBrowser){
-    showInAppBrowserWarning(inAppBrowser);
-    return;
-  }
   // 清除舊的 checkpoint 紀錄，開始新流程
   _lineCP.log=[];_lineCP.ss=[];
   try{localStorage.removeItem('_lineCP');sessionStorage.removeItem('_lineCP');}catch(e){}
-  var clearedVerifierKeys=clearPkceVerifierKeys();
 
   var client=getSupabaseClient();
   if(!client){
     alert('Supabase 尚未載入完成，請確認網路連線後重新整理。');
     return;
   }
-  _cp('CP1','signInWithLine 開始',{ua:navigator.userAgent.substring(0,80),clearedVerifierKeys:clearedVerifierKeys.join(',')||'(無)'});
+  _cp('CP1','signInWithLine 開始',{ua:navigator.userAgent.substring(0,80)});
   try{
     updateSupabaseStatus('正在跳轉到 LINE 登入...',false);
     var result=await client.auth.signInWithOAuth({
       provider:'custom:line',
       options:{
         redirectTo:window.location.href.split('#')[0].split('?')[0],
-        skipBrowserRedirect:true
+        skipBrowserRedirect:true,
+        scopes:'openid email profile'
       }
     });
     if(result.error)throw result.error;
@@ -1004,7 +1016,7 @@ async function signInWithLine(){
     if(!cv){
       for(var si=0;si<localStorage.length;si++){
         var k=localStorage.key(si);
-        if(isPkceVerifierKey(k)){
+        if(k&&k.indexOf('code-verifier')>=0||k&&k.indexOf('verifier')>=0||k&&k.indexOf('pkce')>=0){
           cv=localStorage.getItem(k);cvFoundKey=k;break;
         }
       }
@@ -1121,9 +1133,9 @@ function mapWorkLogsForSupabase(reportId,logs,userId){
   return logs.map(function(rec){
     return {
       report_id:reportId,
-      title:rec.subtype||rec.title||'未命名施工紀錄',
+      title:rec.title||'未命名施工紀錄',
       person:rec.person||'',
-      contractor_unit:rec.contractor||rec.unit||'',
+      contractor_unit:rec.unit||'',
       period_am:!!rec.am,
       period_pm:!!rec.pm,
       hours:Number(rec.hours)||0,
@@ -1131,11 +1143,8 @@ function mapWorkLogsForSupabase(reportId,logs,userId){
       location:rec.location||'',
       work_today:rec.workToday||'',
       work_tomorrow:rec.workTomorrow||'',
-      has_subcontractor:!!rec.isSubcontractor||!!rec.subcontractor,
+      has_subcontractor:!!rec.subcontractor,
       subcontractor_name:rec.subcontractorName||'',
-      crew_category:rec.category||null,
-      crew_subtype:rec.subtype||null,
-      headcount:(rec.headcount===undefined||rec.headcount===null)?null:Number(rec.headcount),
       filled_by:userId,
       status:'draft',
       confirmed_by:null
@@ -1194,13 +1203,9 @@ function mapSupabaseWorkLogsToLocalLogs(dateStr,rows){
     return {
       id:row.id||('cloud-log-'+Date.now()+'-'+Math.random().toString(36).substr(2,5)),
       date:dateStr,
-      category:row.crew_category||'',
-      subtype:row.crew_subtype||row.title||'未命名施工紀錄',
-      headcount:Number(row.headcount)||0,
       title:row.title||'未命名施工紀錄',
       person:row.person||'',
       unit:row.contractor_unit||'',
-      contractor:row.contractor_unit||'',
       am:!!row.period_am,
       pm:!!row.period_pm,
       hours:Number(row.hours)||0,
@@ -1217,29 +1222,6 @@ function mapSupabaseWorkLogsToLocalLogs(dateStr,rows){
 function replaceLocalLogsForDate(dateStr,cloudLogs){
   var records=loadLogRecords().filter(function(rec){return rec.date!==dateStr});
   saveLogRecords(records.concat(cloudLogs));
-}
-function replaceLocalCrewEntriesForDate(dateStr,cloudLogs){
-  var cloudCrewEntries=(cloudLogs||[]).filter(function(rec){return rec.category&&rec.subtype}).map(function(rec){
-    return {
-      id:rec.id||('crew-'+Date.now()+'-'+Math.random().toString(36).substr(2,5)),
-      date:dateStr,
-      category:rec.category,
-      subtype:rec.subtype,
-      headcount:Number(rec.headcount)||0,
-      location:rec.location||'',
-      workToday:rec.workToday||'',
-      contractor:rec.contractor||rec.unit||'',
-      am:!!rec.am,
-      pm:!!rec.pm,
-      hours:Number(rec.hours)||0,
-      workTomorrow:rec.workTomorrow||'',
-      isSubcontractor:!!rec.subcontractor,
-      subcontractorName:rec.subcontractorName||''
-    };
-  });
-  var records=loadCrewEntries().filter(function(rec){return rec.date!==dateStr});
-  saveToStore('crewEntries',records.concat(cloudCrewEntries));
-  updateCrewTotal();
 }
 function assertSupabaseOk(result,label){
   if(result&&result.error)throw new Error(label+'：'+result.error.message);
@@ -1260,9 +1242,8 @@ async function syncCurrentReportToSupabase(){
     var user=userResult.data&&userResult.data.user;
     if(!user)throw new Error('尚未登入，請先用 Email 登入。');
     var project=await getFirstSupabaseProject(client);
+    autoSave();
     var data=collectReportData();
-    // Avoid calling autoSave() here because it can schedule another cloud sync.
-    saveReport(currentReportDate,data);
     var reportPayload={
       project_id:project.id,
       report_date:currentReportDate,
@@ -1287,7 +1268,7 @@ async function syncCurrentReportToSupabase(){
       await client.from('report_items').insert(itemRows).then(function(result){assertSupabaseOk(result,'同步日報明細失敗')});
     }
     await client.from('work_logs').delete().eq('report_id',reportId).then(function(result){assertSupabaseOk(result,'清除施工紀錄失敗')});
-    var localLogs=loadCrewEntries().filter(function(r){return r.date===currentReportDate});
+    var localLogs=loadLogRecords().filter(function(r){return r.date===currentReportDate});
     var workLogRows=mapWorkLogsForSupabase(reportId,localLogs,user.id);
     if(workLogRows.length>0){
       await client.from('work_logs').insert(workLogRows).then(function(result){assertSupabaseOk(result,'同步施工紀錄失敗')});
@@ -1325,7 +1306,7 @@ async function loadCurrentReportFromSupabase(){
       .order('sort_order',{ascending:true});
     assertSupabaseOk(itemResult,'讀取日報明細失敗');
     var logResult=await client.from('work_logs')
-      .select('id,title,person,contractor_unit,period_am,period_pm,hours,total_hours,location,work_today,work_tomorrow,has_subcontractor,subcontractor_name,crew_category,crew_subtype,headcount,created_at,updated_at')
+      .select('id,title,person,contractor_unit,period_am,period_pm,hours,total_hours,location,work_today,work_tomorrow,has_subcontractor,subcontractor_name,created_at,updated_at')
       .eq('report_id',report.id)
       .order('created_at',{ascending:true});
     assertSupabaseOk(logResult,'讀取施工紀錄失敗');
@@ -1333,7 +1314,6 @@ async function loadCurrentReportFromSupabase(){
     var cloudLogs=mapSupabaseWorkLogsToLocalLogs(currentReportDate,logResult.data||[]);
     saveReport(currentReportDate,data);
     replaceLocalLogsForDate(currentReportDate,cloudLogs);
-    replaceLocalCrewEntriesForDate(currentReportDate,cloudLogs);
     populateReportUI(data);
     updateLogList();
     updateHistoryList();
@@ -1429,24 +1409,19 @@ async function initCloudMode(){
 
 function setCloudBadge(mode,detail){
   var el=document.getElementById('cloud-badge');
-  var banner=document.getElementById('home-login-banner');
-  if(el){
-    if(mode==='cloud'){
-      el.textContent='☁️ 雲端模式';
-      el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#dcfce7;color:#16a34a;font-weight:600;display:inline-block';
-    }else if(mode==='syncing'){
-      el.textContent='🔄 同步中...';
-      el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#dbeafe;color:#2563eb;font-weight:600;display:inline-block';
-    }else if(mode==='error'){
-      el.textContent='⚠️ '+(detail||'連線異常');
-      el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#fef3c7;color:#d97706;font-weight:600;display:inline-block';
-    }else{
-      el.textContent='📱 本機模式';
-      el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#f3f4f6;color:#6b7280;font-weight:600;display:inline-block';
-    }
-  }
-  if(banner){
-    banner.style.display=(mode==='cloud'||mode==='syncing')?'none':'flex';
+  if(!el)return;
+  if(mode==='cloud'){
+    el.textContent='☁️ 雲端模式';
+    el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#dcfce7;color:#16a34a;font-weight:600;display:inline-block';
+  }else if(mode==='syncing'){
+    el.textContent='🔄 同步中...';
+    el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#dbeafe;color:#2563eb;font-weight:600;display:inline-block';
+  }else if(mode==='error'){
+    el.textContent='⚠️ '+(detail||'連線異常');
+    el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#fef3c7;color:#d97706;font-weight:600;display:inline-block';
+  }else{
+    el.textContent='📱 本機模式';
+    el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#f3f4f6;color:#6b7280;font-weight:600;display:inline-block';
   }
 }
 
@@ -1599,7 +1574,7 @@ async function cloudLoadLogs(dateStr){
     if(reportResult.error)throw reportResult.error;
     if(!reportResult.data)return [];
     var logResult=await client.from('work_logs')
-      .select('id,title,person,contractor_unit,period_am,period_pm,hours,total_hours,location,work_today,work_tomorrow,has_subcontractor,subcontractor_name,crew_category,crew_subtype,headcount,created_at,updated_at')
+      .select('id,title,person,contractor_unit,period_am,period_pm,hours,total_hours,location,work_today,work_tomorrow,has_subcontractor,subcontractor_name,created_at,updated_at')
       .eq('report_id',reportResult.data.id)
       .order('created_at',{ascending:true});
     if(logResult.error)throw logResult.error;
@@ -1690,17 +1665,13 @@ function collectReportData(){
   // 施工天數（從開工日自動計算）
   var settings=loadSettings();
   data.constructionDays=daysBetween(settings.startDate,currentReportDate)+1;
-  // 工別紀錄（取代原本的人員步驟）
-  data.crewEntries=loadCrewEntries().filter(function(e){return e.date===currentReportDate});
-  // 衍生出舊格式 data.crew，讓 PDF 預覽、歷史統計等既有程式碼不用修改
+  // 人員
   data.crew=[];
-  var crewByCategory={};
-  data.crewEntries.forEach(function(e){
-    var key=crewCategoryName(e.category);
-    crewByCategory[key]=(crewByCategory[key]||0)+(e.headcount||0);
-  });
-  Object.keys(crewByCategory).forEach(function(name){
-    data.crew.push({name:name,count:crewByCategory[name]});
+  document.querySelectorAll('#screen-step2 .crew-row').forEach(function(row){
+    data.crew.push({
+      name:row.querySelector('.crew-label').textContent,
+      count:parseInt(row.querySelector('.crew-num').textContent)||0
+    });
   });
   // 材料
   data.materials={};
@@ -1758,9 +1729,22 @@ function populateReportUI(data){
     var cdEl=document.getElementById('step1-construction-days');
     if(cdEl)cdEl.textContent=data.constructionDays+' 天';
   }
-  // 工別紀錄：資料已直接存在 crewEntries store（新增/修改/刪除時即時寫入），
-  // 不需要從 data.crew 反向產生 DOM；畫面渲染改由 goTo('screen-step2') 觸發。
-  if(document.getElementById('crew-total-count')){
+  // 人員
+  if(data.crew){
+    var crewContainer=document.querySelector('#screen-step2 .content');
+    // 清除現有 crew-row
+    document.querySelectorAll('#screen-step2 .crew-row').forEach(function(r){r.remove()});
+    // 重新產生
+    var addBtn=crewContainer.querySelector('.add-btn');
+    data.crew.forEach(function(c){
+      var row=document.createElement('div');row.className='crew-row';
+      row.innerHTML='<span class="crew-label">'+escHtml(c.name)+'</span>'+
+        '<div class="crew-ctrl">'+
+        '<div class="crew-btn" onclick="adjustCrew(this,-1)">−</div>'+
+        '<span class="crew-num">'+c.count+'</span>'+
+        '<div class="crew-btn" onclick="adjustCrew(this,1)">＋</div></div>';
+      crewContainer.insertBefore(row,addBtn);
+    });
     updateCrewTotal();
   }
   // 材料
@@ -2206,15 +2190,17 @@ function handleAuthCallback(){
   var hasCodeInQuery=search&&search.indexOf('code=')>=0&&search.indexOf('error_code=')<0;
   var hasErrorInQuery=search&&search.indexOf('error=')>=0;
 
+  // 強制彈窗：不管在哪個頁面都看得到
   // 處理 Supabase 回傳的錯誤（如 OAuth state expired）
   if(hasErrorInQuery){
     var errParams=new URLSearchParams(search);
     var errMsg=errParams.get('error_description')||errParams.get('error')||'未知錯誤';
     var errCode=errParams.get('error_code')||'';
     _cp('CP-AUTH-ERR','Supabase 回傳認證錯誤',{error:errMsg,code:errCode});
+    alert('[認證錯誤] '+errCode+'\n'+decodeURIComponent(errMsg.replace(/\+/g,' ')));
     cleanupAuthUrl();
     updateSupabaseStatus('LINE 登入失敗：'+decodeURIComponent(errMsg.replace(/\+/g,' ')),true);
-    if(LINE_LOGIN_DEBUG)showCheckpointPanel();
+    showCheckpointPanel();
     return;
   }
 
@@ -2229,13 +2215,15 @@ function handleAuthCallback(){
       supabaseLoaded:!!window.supabase,
       createClientExists:!!(window.supabase&&window.supabase.createClient)
     });
+    alert('[CP8-ERR] Supabase client 為 null!\nsupabase loaded: '+!!window.supabase);
     updateSupabaseStatus('Supabase 尚未載入，請重新整理頁面。',true);
-    if(LINE_LOGIN_DEBUG)showCheckpointPanel();
+    showCheckpointPanel();
     return;
   }
   _cp('CP8a','Supabase client 就緒',{
     hasExchange:typeof client.auth.exchangeCodeForSession
   });
+  alert('[CP8a] Supabase client OK, exchange type: '+typeof client.auth.exchangeCodeForSession);
 
   if(hasAuthInHash){
     try{
@@ -2260,11 +2248,12 @@ function handleAuthCallback(){
     var code=params.get('code');
     if(!code){
       _cp('CP9-ERR','URL 有 code= 但解析為空',{search:search.substring(0,120)});
-      updateSupabaseStatus('登入回傳資料不完整，請重新登入。',true);
-      if(LINE_LOGIN_DEBUG)showCheckpointPanel();
+      alert('[CP9-ERR] code 解析為空!\nsearch: '+search.substring(0,120));
+      showCheckpointPanel();
       return;
     }
     _cp('CP9','準備 exchangeCodeForSession',{code8:code.substring(0,8)});
+    alert('[CP9] code 取得成功: '+code.substring(0,12)+'...');
     updateSupabaseStatus('正在交換 code 取得 session...',false);
 
     // 10 秒 timeout 兜底：如果 promise 掛住不回應
@@ -2272,8 +2261,8 @@ function handleAuthCallback(){
     var exchangeTimer=setTimeout(function(){
       if(!exchangeDone){
         _cp('CP11-TIMEOUT','exchangeCodeForSession 超過 10 秒無回應');
-        updateSupabaseStatus('登入處理逾時，請重新整理頁面再試一次。',true);
-        if(LINE_LOGIN_DEBUG)showCheckpointPanel();
+        alert('[CP11-TIMEOUT] exchange 超過 10 秒無回應');
+        showCheckpointPanel();
       }
     },10000);
 
@@ -2286,18 +2275,20 @@ function handleAuthCallback(){
       }
     }
     _cp('CP10','exchangeCodeForSession 呼叫中...',{cvInStorage:cvCheck.join(';')||'(無)'});
+    alert('[CP10] 即將 exchange\ncode: '+code.substring(0,12)+'...\ncv in storage: '+(cvCheck.join('; ')||'(無)'));
 
     client.auth.exchangeCodeForSession(code).then(function(result){
       exchangeDone=true;clearTimeout(exchangeTimer);
       cleanupAuthUrl();
       if(result.error){
         _cp('CP11-FAIL','exchange 回傳錯誤',{err:result.error.message||'unknown'});
-        updateSupabaseStatus('登入失敗：'+(result.error.message||'無法交換登入資料'),true);
-        if(LINE_LOGIN_DEBUG)showCheckpointPanel();
+        alert('[CP11-FAIL] exchange 失敗\n'+result.error.message);
+        showCheckpointPanel();
       }else{
         _cp('CP11-OK','exchange 成功！',{
           userId:result.data&&result.data.user&&result.data.user.id?result.data.user.id.substring(0,8):'?'
         });
+        alert('[CP11-OK] exchange 成功！登入完成');
         initCloudMode().then(function(ok){
           if(ok)refreshSupabaseStatus();
           else updateSupabaseStatus('登入成功但無法載入專案。',true);
@@ -2306,8 +2297,8 @@ function handleAuthCallback(){
     }).catch(function(e){
       exchangeDone=true;clearTimeout(exchangeTimer);
       _cp('CP11-CATCH','exchange 拋出例外',{err:e.message||'catch error'});
-      updateSupabaseStatus('登入失敗：'+(e.message||'未知錯誤'),true);
-      if(LINE_LOGIN_DEBUG)showCheckpointPanel();
+      alert('[CP11-CATCH] exchange 例外\n'+e.message);
+      showCheckpointPanel();
     });
   }
 }
@@ -2319,7 +2310,7 @@ function showCheckpointPanel(){
   var lsLog=_lineCP.log;
   var ssLog=_lineCP.ss;
   var lines=[];
-  lines.push('<div style="font-weight:700;color:#92400e;margin-bottom:6px;font-size:13px">LINE Login 診斷</div>');
+  lines.push('<div style="font-weight:700;color:#92400e;margin-bottom:6px;font-size:13px">🔍 LINE Login 診斷 ('+LINE_LOGIN_BUILD+')</div>');
   // 主要 checkpoint 紀錄
   if(lsLog.length===0){
     lines.push('<div style="color:#dc2626;font-weight:600">⚠️ localStorage 無任何 checkpoint 紀錄</div>');
@@ -2395,47 +2386,24 @@ function recheckAuthStatus(){
   });
 }
 window.recheckAuthStatus=recheckAuthStatus;
-// 偵測常見的「App 內建瀏覽器」（LINE / Facebook / Messenger / Instagram）。
-// 這些內建瀏覽器對第三方登入跳轉、App 切換的支援都不穩定：常見狀況是
-// 「按登入沒反應」「授權後跳不回來」。原本只偵測 LINE 的 UA，
-// 2026-07-02 擴大涵蓋範圍，並提前到頁面載入時就先警告，不用等登入失敗才發現。
-function detectInAppBrowser(){
-  var ua=navigator.userAgent||'';
-  if(ua.indexOf('Line/')>=0||ua.indexOf('LIFF')>=0)return 'LINE';
-  if(ua.indexOf('FBAN')>=0||ua.indexOf('FBAV')>=0||ua.indexOf('FB_IAB')>=0)return 'Facebook';
-  if(ua.indexOf('Instagram')>=0)return 'Instagram';
-  if(ua.indexOf('Messenger')>=0)return 'Messenger';
-  return null;
-}
-function showInAppBrowserWarning(appName){
-  var el=document.getElementById('supabase-status');
-  if(!el)return;
-  el.innerHTML='⚠️ 偵測到您正在「'+appName+'」內建瀏覽器中開啟本頁面，登入功能在這裡常常無法正常運作。<br>'+
-    '<span style="font-size:12px;color:#d97706">請改用 Safari 或 Chrome 開啟此頁面再登入。</span><br>'+
-    '<button onclick="copyAppUrl()" style="margin-top:6px;padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:13px">📋 複製網址</button>';
-}
-// 偵測 App 內建瀏覽器：如果是從 LINE/FB/IG/Messenger 打開且已登入，提示使用者在一般瀏覽器開啟
+// 偵測 LINE 內建瀏覽器：如果是從 LINE 打開且已登入，提示使用者在一般瀏覽器開啟
 function checkLineInAppBrowser(){
-  var appName=detectInAppBrowser();
-  if(!appName)return;
-  var client=getSupabaseClient();
-  if(client){
-    client.auth.getSession().then(function(result){
-      var session=result&&result.data&&result.data.session;
-      if(session){
-        // 內建瀏覽器裡已經有 session：提示用一般瀏覽器開啟
-        var el=document.getElementById('supabase-status');
-        if(el){
-          el.innerHTML='✅ 登入成功！<br><span style="font-size:12px;color:#d97706">您目前在「'+appName+'」內建瀏覽器，請用 Safari 或 Chrome 開啟此頁面以正常使用。</span><br><button onclick="copyAppUrl()" style="margin-top:6px;padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:13px">📋 複製網址</button>';
+  var ua=navigator.userAgent||'';
+  if(ua.indexOf('Line/')>=0||ua.indexOf('LIFF')>=0){
+    var client=getSupabaseClient();
+    if(client){
+      client.auth.getSession().then(function(result){
+        var session=result&&result.data&&result.data.session;
+        if(session){
+          // 在 LINE 內建瀏覽器且已登入：提示用一般瀏覽器開啟
+          var el=document.getElementById('supabase-status');
+          if(el){
+            el.innerHTML='✅ LINE 登入成功！<br><span style="font-size:12px;color:#d97706">您目前在 LINE 內建瀏覽器，請用 Safari 或 Chrome 開啟此頁面以正常使用。</span><br><button onclick="copyAppUrl()" style="margin-top:6px;padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:13px">📋 複製網址</button>';
+          }
         }
-      }
-    });
+      });
+    }
   }
-}
-// 頁面一載入就先檢查是否在內建瀏覽器中，提前警告（不用等使用者按登入才發現）
-function checkInAppBrowserOnLoad(){
-  var appName=detectInAppBrowser();
-  if(appName)showInAppBrowserWarning(appName);
 }
 function copyAppUrl(){
   var url=window.location.href.split('#')[0].split('?')[0];
@@ -2465,7 +2433,6 @@ function goTo(id){
   document.getElementById(id).classList.add('active');
   window.scrollTo(0,0);
   if(id==='screen-home'){updateWeeklyStats();}
-  if(id==='screen-step2'){renderCrewCategories();switchCrewCat(currentCrewCat);updateCrewTotal();}
   if(id==='screen-step5'){updateLogList();}
   if(id==='screen-history'){updateHistoryList();}
   if(id==='screen-preview'){renderPreview();}
@@ -2475,9 +2442,7 @@ function goTo(id){
 document.addEventListener('DOMContentLoaded',function(){
   initApp();
   handleAuthCallback();
-  // 提前檢查：是否在 App 內建瀏覽器中，先警告再讓使用者點登入
-  checkInAppBrowserOnLoad();
-  // 延遲再檢查一次：涵蓋已經登入完成、要提示切換瀏覽器的情況
+  // 延遲檢查：是否在 LINE 內建瀏覽器中
   setTimeout(checkLineInAppBrowser,1500);
 });
 
@@ -2561,225 +2526,6 @@ function toggleCheck(el){
   if(el.id==='log-sub-check'){
     document.getElementById('log-sub-fields').style.display=el.classList.contains('on')?'block':'none';
   }
-}
-
-var CREW_CATEGORIES=[
-  {id:'structure',name:'結構工程',icon:'🏗️'},
-  {id:'renovation',name:'裝修工程',icon:'🎨'},
-  {id:'foundation',name:'基礎工程',icon:'⛏️'},
-  {id:'electrical',name:'機電工程',icon:'⚡'},
-  {id:'temporary',name:'假設工程',icon:'🧰'}
-];
-var CREW_SUBTYPES={
-  structure:['板模工','鋼筋工','混凝土工','模板拆除工'],
-  renovation:['泥作工','砌磚工','油漆工','磁磚工','木作工'],
-  foundation:['開挖工','擋土工','地質改良工'],
-  electrical:['水電工','消防工','空調工'],
-  temporary:['鷹架工','圍籬工','臨時設施工']
-};
-var currentCrewCat='structure';
-
-function renderCrewCategories(){
-  var wrap=document.getElementById('crew-cats');
-  if(!wrap)return;
-  wrap.innerHTML='';
-  CREW_CATEGORIES.forEach(function(cat){
-    var el=document.createElement('div');
-    el.className='cat-btn'+(cat.id===currentCrewCat?' selected':'');
-    el.onclick=function(){switchCrewCat(cat.id)};
-    var icon=document.createElement('div');
-    icon.className='cat-icon';
-    icon.textContent=cat.icon;
-    var name=document.createElement('div');
-    name.className='cat-name';
-    name.textContent=cat.name;
-    el.appendChild(icon);
-    el.appendChild(name);
-    wrap.appendChild(el);
-  });
-}
-
-function crewCategoryName(id){
-  var found=CREW_CATEGORIES.find(function(c){return c.id===id});
-  return found?found.name:id;
-}
-
-function switchCrewCat(catId){
-  currentCrewCat=catId;
-  renderCrewCategories();
-  document.getElementById('crew-cat-label').textContent=crewCategoryName(catId)+' 細項工別';
-  renderCrewSubtypeList(catId);
-}
-
-function loadCrewEntries(){
-  return loadFromStore('crewEntries')||[];
-}
-function saveCrewEntries(records){
-  saveToStore('crewEntries',records);
-  scheduleCloudSync();
-  updateCrewTotal();
-}
-
-function renderCrewSubtypeList(catId){
-  var area=document.getElementById('crew-list-area');
-  if(!area)return;
-  area.innerHTML='';
-  var subtypes=CREW_SUBTYPES[catId]||[];
-  var entries=loadCrewEntries().filter(function(e){return e.date===currentReportDate&&e.category===catId});
-  subtypes.forEach(function(subtype){
-    var subtypeEntries=entries.filter(function(e){return e.subtype===subtype});
-    if(subtypeEntries.length===0){
-      area.appendChild(buildCrewSubtypeRow(catId,subtype));
-    }else{
-      subtypeEntries.forEach(function(entry){
-        area.appendChild(buildCrewEntryCard(entry));
-      });
-      area.appendChild(buildAddAnotherRow(catId,subtype));
-    }
-  });
-}
-
-function buildCrewSubtypeRow(catId,subtype){
-  var row=document.createElement('div');
-  row.className='crew-subtype-row';
-  row.style.cssText='display:flex;align-items:center;gap:8px;padding:12px 4px;border-bottom:1px solid var(--border);cursor:pointer';
-  row.onclick=function(){addCrewEntry(catId,subtype)};
-  var check=document.createElement('div');
-  check.className='item-check';
-  var label=document.createElement('span');
-  label.style.cssText='font-size:15px;color:var(--text2)';
-  label.textContent=subtype;
-  row.appendChild(check);
-  row.appendChild(label);
-  return row;
-}
-
-function buildAddAnotherRow(catId,subtype){
-  var row=document.createElement('div');
-  row.style.cssText='text-align:center;padding:8px 4px;color:var(--text3);font-size:13px;cursor:pointer';
-  row.textContent='＋ 新增另一筆「'+subtype+'」紀錄';
-  row.onclick=function(){addCrewEntry(catId,subtype)};
-  return row;
-}
-
-function addCrewEntry(catId,subtype){
-  var entries=loadCrewEntries();
-  entries.push({
-    id:'crew-'+Date.now()+'-'+Math.random().toString(36).substr(2,5),
-    date:currentReportDate,
-    category:catId,
-    subtype:subtype,
-    headcount:0,
-    location:'',
-    workToday:'',
-    contractor:'',
-    // 時段（上午/下午）目前還沒有卡片 UI 可以填，預設視為「全天」，
-    // 以符合 Supabase work_logs 既有的 check (period_am or period_pm) 規則。
-    // 下一輪加上時段 UI 時，使用者可以自行調整成只勾上午或只勾下午。
-    am:true,
-    pm:true,
-    hours:0,
-    workTomorrow:'',
-    isSubcontractor:false
-  });
-  saveCrewEntries(entries);
-  renderCrewSubtypeList(catId);
-}
-
-function updateCrewEntry(entryId,field,value){
-  var entries=loadCrewEntries();
-  var entry=entries.find(function(e){return e.id===entryId});
-  if(!entry)return;
-  entry[field]=value;
-  saveCrewEntries(entries);
-}
-
-function removeCrewEntry(entryId,catId){
-  var entries=loadCrewEntries().filter(function(e){return e.id!==entryId});
-  saveCrewEntries(entries);
-  renderCrewSubtypeList(catId);
-}
-
-function buildCrewEntryCard(entry){
-  var card=document.createElement('div');
-  card.style.cssText='border:1.5px solid var(--primary);border-radius:var(--radius);padding:14px;margin-bottom:10px;background:var(--white)';
-
-  var header=document.createElement('div');
-  header.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:10px';
-  var title=document.createElement('strong');
-  title.style.fontSize='15px';
-  title.textContent=entry.subtype;
-  var ctrl=document.createElement('div');
-  ctrl.style.cssText='display:flex;align-items:center;gap:8px';
-  var minus=document.createElement('div');
-  minus.className='crew-btn';
-  minus.textContent='−';
-  minus.onclick=function(){updateCrewEntry(entry.id,'headcount',Math.max(0,(entry.headcount||0)-1));renderCrewSubtypeList(entry.category)};
-  var count=document.createElement('span');
-  count.style.cssText='font-size:15px;font-weight:600;min-width:20px;text-align:center;display:inline-block';
-  count.textContent=entry.headcount||0;
-  var plus=document.createElement('div');
-  plus.className='crew-btn';
-  plus.textContent='＋';
-  plus.onclick=function(){updateCrewEntry(entry.id,'headcount',(entry.headcount||0)+1);renderCrewSubtypeList(entry.category)};
-  ctrl.appendChild(minus);ctrl.appendChild(count);ctrl.appendChild(plus);
-  header.appendChild(title);header.appendChild(ctrl);
-
-  var locationInput=document.createElement('input');
-  locationInput.placeholder='工作位置（必填）例：B2F A1-A5軸';
-  locationInput.value=entry.location||'';
-  locationInput.style.cssText='width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:8px';
-  locationInput.oninput=function(){updateCrewEntry(entry.id,'location',locationInput.value)};
-
-  var contentInput=document.createElement('textarea');
-  contentInput.className='textarea';
-  contentInput.placeholder='工作內容（必填）例：柱模組立完成，進度80%';
-  contentInput.value=entry.workToday||'';
-  contentInput.style.cssText='width:100%;min-height:56px;margin-bottom:8px';
-  contentInput.oninput=function(){updateCrewEntry(entry.id,'workToday',contentInput.value)};
-
-  var contractorInput=document.createElement('input');
-  contractorInput.placeholder='廠商（必填）例：大成工程行';
-  contractorInput.value=entry.contractor||'';
-  contractorInput.style.cssText='width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:8px';
-  contractorInput.oninput=function(){updateCrewEntry(entry.id,'contractor',contractorInput.value)};
-
-  var removeBtn=document.createElement('div');
-  removeBtn.style.cssText='text-align:right;font-size:12px;color:var(--text3);cursor:pointer';
-  removeBtn.textContent='刪除這筆紀錄';
-  removeBtn.onclick=function(){removeCrewEntry(entry.id,entry.category)};
-
-  card.appendChild(header);
-  card.appendChild(locationInput);
-  card.appendChild(contentInput);
-  card.appendChild(contractorInput);
-  card.appendChild(removeBtn);
-  return card;
-}
-
-function updateCrewTotal(){
-  var el=document.getElementById('crew-total-count');
-  if(!el)return;
-  var entries=loadCrewEntries().filter(function(e){return e.date===currentReportDate});
-  var total=0;
-  entries.forEach(function(e){total+=(e.headcount||0)});
-  el.textContent=total;
-}
-
-function goToStep3IfValid(){
-  var entries=loadCrewEntries().filter(function(e){return e.date===currentReportDate});
-  if(entries.length===0){
-    alert('請至少新增一筆工別紀錄');
-    return;
-  }
-  var invalid=entries.find(function(e){
-    return !e.location||!e.location.trim()||!e.workToday||!e.workToday.trim()||!e.contractor||!e.contractor.trim()||!e.headcount||e.headcount<=0;
-  });
-  if(invalid){
-    alert('「'+invalid.subtype+'」還有必填欄位（本日人數、工作位置、工作內容、廠商）沒填完整');
-    return;
-  }
-  goTo('screen-step3');
 }
 
 var matCatNames={concrete:'混凝土類',masonry:'砌築材料',sealant:'填縫黏著',aggregate:'骨材類',rebar:'鋼筋類',other:'其他'};

@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!-- pages-publish-trigger: beta-20260702 -->
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
@@ -145,7 +144,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
       </div>
     </div>
 
-    <button class="btn btn-primary" onclick="goTo('screen-step1')" style="margin-bottom:12px;padding:18px 20px;font-size:17px">
+    <div id="home-login-banner" style="display:none;align-items:center;gap:12px;margin-bottom:14px;padding:14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px">
+      <span style="font-size:22px">☁️</span>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600;color:#1d4ed8">尚未登入</div>
+        <div style="font-size:12px;color:#1d4ed8">資料目前只存在這支手機，登入後自動備份雲端</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="goTo('screen-settings')" style="white-space:nowrap">登入</button>
+    </div>
+
+    <button id="home-start-report-btn" class="btn btn-primary" onclick="goTo('screen-step1')" style="margin-bottom:12px;padding:18px 20px;font-size:17px">
       開始填寫今日日報 →
       <div style="font-size:12px;font-weight:400;opacity:0.85;margin-top:2px" id="home-report-date">2026-06-27（五）</div>
     </button>
@@ -816,7 +824,19 @@ var DEFAULT_SETTINGS={
 };
 
 // ===== LINE Login 背景診斷與 PKCE 補救 =====
-var LINE_LOGIN_DEBUG=false;
+// 平常關閉，但可用網址參數 ?debug=1 臨時打開診斷面板（會記在 localStorage，
+// 所以跳去 LINE 授權再跳回來還是看得到）。方便請別人在他們手機上點這個
+// 連結測試時，把診斷面板截圖回報，不用自己拿到那支手機才能除錯。
+// 用 ?debug=0 可以關掉。
+var LINE_LOGIN_DEBUG=(function(){
+  try{
+    var qp=new URLSearchParams(window.location.search).get('debug');
+    if(qp==='1'){localStorage.setItem('LINE_LOGIN_DEBUG','1');return true;}
+    if(qp==='0'){localStorage.removeItem('LINE_LOGIN_DEBUG');return false;}
+    if(localStorage.getItem('LINE_LOGIN_DEBUG')==='1')return true;
+  }catch(e){}
+  return false;
+})();
 var LINE_LOGIN_BUILD='v2026-07-02g';
 var _lineCP={log:[],ss:[]};
 function _cp(id,msg,data){
@@ -989,6 +1009,11 @@ async function doSupabaseLogout(){
 }
 
 async function signInWithLine(){
+  var inAppBrowser=detectInAppBrowser();
+  if(inAppBrowser){
+    showInAppBrowserWarning(inAppBrowser);
+    return;
+  }
   // 清除舊的 checkpoint 紀錄，開始新流程
   _lineCP.log=[];_lineCP.ss=[];
   try{localStorage.removeItem('_lineCP');sessionStorage.removeItem('_lineCP');}catch(e){}
@@ -1437,19 +1462,24 @@ async function initCloudMode(){
 
 function setCloudBadge(mode,detail){
   var el=document.getElementById('cloud-badge');
-  if(!el)return;
-  if(mode==='cloud'){
-    el.textContent='☁️ 雲端模式';
-    el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#dcfce7;color:#16a34a;font-weight:600;display:inline-block';
-  }else if(mode==='syncing'){
-    el.textContent='🔄 同步中...';
-    el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#dbeafe;color:#2563eb;font-weight:600;display:inline-block';
-  }else if(mode==='error'){
-    el.textContent='⚠️ '+(detail||'連線異常');
-    el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#fef3c7;color:#d97706;font-weight:600;display:inline-block';
-  }else{
-    el.textContent='📱 本機模式';
-    el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#f3f4f6;color:#6b7280;font-weight:600;display:inline-block';
+  var banner=document.getElementById('home-login-banner');
+  if(el){
+    if(mode==='cloud'){
+      el.textContent='☁️ 雲端模式';
+      el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#dcfce7;color:#16a34a;font-weight:600;display:inline-block';
+    }else if(mode==='syncing'){
+      el.textContent='🔄 同步中...';
+      el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#dbeafe;color:#2563eb;font-weight:600;display:inline-block';
+    }else if(mode==='error'){
+      el.textContent='⚠️ '+(detail||'連線異常');
+      el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#fef3c7;color:#d97706;font-weight:600;display:inline-block';
+    }else{
+      el.textContent='📱 本機模式';
+      el.style.cssText='font-size:12px;padding:3px 10px;border-radius:12px;background:#f3f4f6;color:#6b7280;font-weight:600;display:inline-block';
+    }
+  }
+  if(banner){
+    banner.style.display=(mode==='cloud'||mode==='syncing')?'none':'flex';
   }
   updateCloudSyncDetail(mode,detail);
 }
@@ -2438,24 +2468,47 @@ function recheckAuthStatus(){
   });
 }
 window.recheckAuthStatus=recheckAuthStatus;
-// 偵測 LINE 內建瀏覽器：如果是從 LINE 打開且已登入，提示使用者在一般瀏覽器開啟
-function checkLineInAppBrowser(){
+// 偵測常見的「App 內建瀏覽器」（LINE / Facebook / Messenger / Instagram）。
+// 這些內建瀏覽器對第三方登入跳轉、App 切換的支援都不穩定：常見狀況是
+// 「按登入沒反應」「授權後跳不回來」。原本只偵測 LINE 的 UA，
+// 2026-07-02 擴大涵蓋範圍，並提前到頁面載入時就先警告，不用等登入失敗才發現。
+function detectInAppBrowser(){
   var ua=navigator.userAgent||'';
-  if(ua.indexOf('Line/')>=0||ua.indexOf('LIFF')>=0){
-    var client=getSupabaseClient();
-    if(client){
-      client.auth.getSession().then(function(result){
-        var session=result&&result.data&&result.data.session;
-        if(session){
-          // 在 LINE 內建瀏覽器且已登入：提示用一般瀏覽器開啟
-          var el=document.getElementById('supabase-status');
-          if(el){
-            el.innerHTML='✅ LINE 登入成功！<br><span style="font-size:12px;color:#d97706">您目前在 LINE 內建瀏覽器，請用 Safari 或 Chrome 開啟此頁面以正常使用。</span><br><button onclick="copyAppUrl()" style="margin-top:6px;padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:13px">📋 複製網址</button>';
-          }
+  if(ua.indexOf('Line/')>=0||ua.indexOf('LIFF')>=0)return 'LINE';
+  if(ua.indexOf('FBAN')>=0||ua.indexOf('FBAV')>=0||ua.indexOf('FB_IAB')>=0)return 'Facebook';
+  if(ua.indexOf('Instagram')>=0)return 'Instagram';
+  if(ua.indexOf('Messenger')>=0)return 'Messenger';
+  return null;
+}
+function showInAppBrowserWarning(appName){
+  var el=document.getElementById('supabase-status');
+  if(!el)return;
+  el.innerHTML='⚠️ 偵測到您正在「'+appName+'」內建瀏覽器中開啟本頁面，登入功能在這裡常常無法正常運作。<br>'+
+    '<span style="font-size:12px;color:#d97706">請改用 Safari 或 Chrome 開啟此頁面再登入。</span><br>'+
+    '<button onclick="copyAppUrl()" style="margin-top:6px;padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:13px">📋 複製網址</button>';
+}
+// 偵測 App 內建瀏覽器：如果是從 LINE/FB/IG/Messenger 打開且已登入，提示使用者在一般瀏覽器開啟
+function checkLineInAppBrowser(){
+  var appName=detectInAppBrowser();
+  if(!appName)return;
+  var client=getSupabaseClient();
+  if(client){
+    client.auth.getSession().then(function(result){
+      var session=result&&result.data&&result.data.session;
+      if(session){
+        // 內建瀏覽器裡已經有 session：提示用一般瀏覽器開啟
+        var el=document.getElementById('supabase-status');
+        if(el){
+          el.innerHTML='✅ 登入成功！<br><span style="font-size:12px;color:#d97706">您目前在「'+appName+'」內建瀏覽器，請用 Safari 或 Chrome 開啟此頁面以正常使用。</span><br><button onclick="copyAppUrl()" style="margin-top:6px;padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:13px">📋 複製網址</button>';
         }
-      });
-    }
+      }
+    });
   }
+}
+// 頁面一載入就先檢查是否在內建瀏覽器中，提前警告（不用等使用者按登入才發現）
+function checkInAppBrowserOnLoad(){
+  var appName=detectInAppBrowser();
+  if(appName)showInAppBrowserWarning(appName);
 }
 function copyAppUrl(){
   var url=window.location.href.split('#')[0].split('?')[0];
@@ -2497,7 +2550,9 @@ function goTo(id){
 document.addEventListener('DOMContentLoaded',function(){
   initApp();
   handleAuthCallback();
-  // 延遲檢查：是否在 LINE 內建瀏覽器中
+  // 提前檢查：是否在 App 內建瀏覽器中，先警告再讓使用者點登入
+  checkInAppBrowserOnLoad();
+  // 延遲再檢查一次：涵蓋已經登入完成、要提示切換瀏覽器的情況
   setTimeout(checkLineInAppBrowser,1500);
 });
 

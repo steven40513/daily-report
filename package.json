@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "test:smoke": "node scripts/frontend-smoke-test.js",
+    "test:extended": "node scripts/frontend-extended-test.js",
+    "test:remaining": "node scripts/frontend-remaining-test.js",
+    "test:beta": "node scripts/frontend-beta-test.js",
+    "test:schema": "node scripts/validate-supabase-schema.js",
+    "test": "npm run test:smoke && npm run test:extended && npm run test:remaining && npm run test:beta && npm run test:schema"
+  },
+  "dependencies": {
+    "jsdom": "^29.1.1"
+  }
+}
