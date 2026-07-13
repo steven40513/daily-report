@@ -155,6 +155,43 @@ async function main() {
   window.isCloudReady = realIsCloudReady;
   window.doCloudSync = realDoCloudSync;
 
+  // 停工紀錄雲端同步測試
+  const realGetClient = window.getSupabaseClient;
+  const realCloudPush = window.cloudPushStoppage;
+  window.isCloudReady = () => true;
+  const pushedStoppages = [];
+  window.cloudPushStoppage = (d, r) => { pushedStoppages.push(d); };
+  window.markStoppage('2026-06-14', '本機停工'); // cloudPushStoppage 被 stub 收錄
+  assert('markStoppage pushes to cloud when ready', pushedStoppages.includes('2026-06-14'));
+  window.getSupabaseClient = () => ({
+    from: () => ({ select: () => ({ eq: async () => ({ data: [{ stoppage_date: '2026-06-20', reason: '颱風停工' }], error: null }) }) })
+  });
+  const stoppageSynced = await window.syncStoppagesWithCloud();
+  assert('stoppage cloud sync succeeds', stoppageSynced === true);
+  assert('cloud stoppage merged into local', window.getStoppage('2026-06-20') !== null);
+  assert('local-only stoppage kept and re-pushed', window.getStoppage('2026-06-14') !== null && pushedStoppages.filter(d => d === '2026-06-14').length === 2);
+  assert('stoppage day counted in calendar status', window.findReportDayStatus('2026-06-20') === 'stoppage');
+  window.getSupabaseClient = realGetClient;
+  window.cloudPushStoppage = realCloudPush;
+  window.isCloudReady = realIsCloudReady;
+  window.unmarkStoppage('2026-06-14');
+  window.unmarkStoppage('2026-06-20');
+  assert('unmark removes merged stoppages', window.getStoppage('2026-06-20') === null);
+
+  // 補填標記雲端映射測試
+  const mapped = window.mapSupabaseReportToLocalData({
+    report_date: '2026-06-18',
+    weather_am: '晴',
+    weather_pm: '陰',
+    construction_days: 18,
+    notes: '',
+    backfilled: true,
+    backfilled_at: '2026-07-14T10:00:00Z',
+    client_updated_at: '2026-07-14T10:00:00Z'
+  }, []);
+  assert('cloud report restores backfilled flag', mapped.backfilled === true);
+  assert('cloud report restores backfilledAt', mapped.backfilledAt === '2026-07-14T10:00:00Z');
+
   window.goTo('screen-report-calendar');
   assert('calendar grid renders cells', document.querySelectorAll('#calendar-grid > div').length > 25);
 

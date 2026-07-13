@@ -1220,6 +1220,10 @@ function mapSupabaseReportToLocalData(report,items){
   data.constructionDays=report.construction_days||data.constructionDays;
   data.progress.notes=report.notes||'';
   data.savedAt=report.client_updated_at||report.updated_at||new Date().toISOString();
+  if(report.backfilled){
+    data.backfilled=true;
+    data.backfilledAt=report.backfilled_at||null;
+  }
   (items||[]).forEach(function(item){
     var row={
       name:item.name||'',
@@ -1339,6 +1343,8 @@ async function syncCurrentReportToSupabase(targetDate){
       construction_days:data.constructionDays||1,
       notes:data.progress&&data.progress.notes?data.progress.notes:'',
       status:'draft',
+      backfilled:!!data.backfilled,
+      backfilled_at:data.backfilledAt||null,
       client_updated_at:new Date().toISOString()
     };
     // Source: https://supabase.com/docs/reference/javascript/upsert
@@ -1376,7 +1382,7 @@ async function loadCurrentReportFromSupabase(){
     if(!user)throw new Error('尚未登入，請先用 Email 登入。');
     var project=await getFirstSupabaseProject(client);
     var reportResult=await client.from('daily_reports')
-      .select('id,report_date,weather_am,weather_pm,construction_days,notes,client_updated_at,updated_at')
+      .select('id,report_date,weather_am,weather_pm,construction_days,notes,backfilled,backfilled_at,client_updated_at,updated_at')
       .eq('project_id',project.id)
       .eq('report_date',currentReportDate)
       .maybeSingle();
@@ -1598,6 +1604,8 @@ async function switchProject(projectId){
       if(cloudPrev)showCopyBanner(true,cloudPrev.date);
     }
     await updateHistoryListFromCloud();
+    await syncStoppagesWithCloud();
+    updateMissingReportBanner();
   }catch(e){
     console.warn('切換專案後雲端載入失敗：',e);
   }
@@ -1634,7 +1642,7 @@ async function cloudLoadReport(dateStr){
   var client=getSupabaseClient();
   try{
     var reportResult=await client.from('daily_reports')
-      .select('id,report_date,weather_am,weather_pm,construction_days,notes,client_updated_at,updated_at')
+      .select('id,report_date,weather_am,weather_pm,construction_days,notes,backfilled,backfilled_at,client_updated_at,updated_at')
       .eq('project_id',cloudState.projectId)
       .eq('report_date',dateStr)
       .maybeSingle();
@@ -2332,6 +2340,10 @@ function initApp(){
       // 更新歷史日報（雲端）
       return updateHistoryListFromCloud();
     }).then(function(){
+      // 同步雲端停工紀錄後更新首頁缺件提醒
+      return syncStoppagesWithCloud();
+    }).then(function(){
+      updateMissingReportBanner();
       updateWeeklyStats();
     }).catch(function(e){
       console.warn('雲端資料載入失敗，使用本機資料：',e);
@@ -2610,7 +2622,16 @@ function goTo(id){
   if(id==='screen-settings'){loadSettingsUI();}
   if(id==='screen-step5'){updateLogList();}
   if(id==='screen-history'){updateHistoryList();}
-  if(id==='screen-report-calendar'){initCalendarView();document.getElementById('calendar-day-detail').style.display='none';}
+  if(id==='screen-report-calendar'){
+    initCalendarView();
+    document.getElementById('calendar-day-detail').style.display='none';
+    // 背景同步雲端停工紀錄，完成後若仍停留在行事曆則重繪（保留使用者切換到的月份）
+    syncStoppagesWithCloud().then(function(synced){
+      if(synced&&document.getElementById('screen-report-calendar').classList.contains('active')){
+        renderCalendar();
+      }
+    });
+  }
   if(id==='screen-preview'){
     renderPreview();
     var backfillBtn=document.getElementById('btn-complete-backfill');
@@ -2803,14 +2824,79 @@ function markStoppage(dateStr,reason){
   var records=loadStoppages().filter(function(s){return s.date!==dateStr});
   records.push({date:dateStr,reason:reason,markedAt:new Date().toISOString()});
   saveStoppages(records);
+  cloudPushStoppage(dateStr,reason);
   return true;
 }
 function unmarkStoppage(dateStr){
   var records=loadStoppages().filter(function(s){return s.date!==dateStr});
   saveStoppages(records);
+  cloudRemoveStoppage(dateStr);
 }
 function getStoppage(dateStr){
   return loadStoppages().find(function(s){return s.date===dateStr})||null;
+}
+
+// ===== 停工紀錄雲端同步 =====
+// 停工標記若只存本機，其他裝置（含管理層）會把停工日誤判為缺件，
+// 因此標記/取消時即時推上雲，登入與開行事曆時從雲端讀回合併。
+function cloudPushStoppage(dateStr,reason){
+  if(!isCloudReady())return;
+  var client=getSupabaseClient();
+  if(!client)return;
+  client.auth.getUser().then(function(userResult){
+    var user=userResult&&userResult.data&&userResult.data.user;
+    if(!user)throw new Error('尚未登入');
+    return client.from('stoppages').upsert({
+      project_id:cloudState.projectId,
+      stoppage_date:dateStr,
+      reason:reason||'',
+      created_by:user.id
+    },{onConflict:'project_id,stoppage_date'});
+  }).then(function(result){
+    if(result&&result.error)throw result.error;
+  }).catch(function(e){
+    updateSupabaseStatus('停工標記同步失敗：'+(e.message||'未知錯誤'),true);
+  });
+}
+function cloudRemoveStoppage(dateStr){
+  if(!isCloudReady())return;
+  var client=getSupabaseClient();
+  if(!client)return;
+  client.from('stoppages').delete()
+    .eq('project_id',cloudState.projectId)
+    .eq('stoppage_date',dateStr)
+    .then(function(result){
+      if(result&&result.error)throw result.error;
+    }).catch(function(e){
+      updateSupabaseStatus('取消停工標記同步失敗：'+(e.message||'未知錯誤'),true);
+    });
+}
+async function syncStoppagesWithCloud(){
+  if(!isCloudReady())return false;
+  var client=getSupabaseClient();
+  if(!client)return false;
+  try{
+    var result=await client.from('stoppages')
+      .select('stoppage_date,reason')
+      .eq('project_id',cloudState.projectId);
+    if(result.error)throw result.error;
+    var cloudRows=result.data||[];
+    var cloudDates={};
+    cloudRows.forEach(function(r){cloudDates[r.stoppage_date]=true});
+    // 本機有、雲端沒有的（多半是離線/未登入時標記的）先補推上雲
+    var localOnly=loadStoppages().filter(function(s){return !cloudDates[s.date]});
+    localOnly.forEach(function(s){cloudPushStoppage(s.date,s.reason)});
+    // 已知限制：若停工標記在別台裝置被取消，本機殘留會被重新推上雲；
+    // 需要 tombstone 機制才能完全解決，現階段以「不遺失標記」優先。
+    var merged=cloudRows.map(function(r){
+      return {date:r.stoppage_date,reason:r.reason||'',markedAt:null};
+    }).concat(localOnly);
+    saveStoppages(merged);
+    return true;
+  }catch(e){
+    console.warn('停工紀錄雲端同步失敗：',e);
+    return false;
+  }
 }
 
 // ===== 缺件掃描 =====

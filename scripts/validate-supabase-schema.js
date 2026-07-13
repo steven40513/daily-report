@@ -7,6 +7,8 @@ const seedPath = path.join(__dirname, '..', 'supabase', 'seed', '202606300002_in
 const seedSql = fs.readFileSync(seedPath, 'utf8');
 const crewFieldsMigrationPath = path.join(__dirname, '..', 'supabase', 'migrations', '202607020004_work_logs_crew_fields.sql');
 const crewFieldsSql = fs.readFileSync(crewFieldsMigrationPath, 'utf8');
+const stoppagesMigrationPath = path.join(__dirname, '..', 'supabase', 'migrations', '202607140001_stoppages_and_backfill.sql');
+const stoppagesSql = fs.readFileSync(stoppagesMigrationPath, 'utf8');
 
 const checks = [
   ['companies table', /create table public\.companies\s*\(/i],
@@ -57,13 +59,28 @@ const crewFieldsChecks = [
 ];
 const crewFieldsFailures = crewFieldsChecks.filter(([, pattern]) => !pattern.test(crewFieldsSql));
 
-if (failures.length > 0 || seedFailures.length > 0 || crewFieldsFailures.length > 0) {
+const stoppagesChecks = [
+  ['daily_reports backfilled column', /add column if not exists backfilled boolean not null default false/i],
+  ['daily_reports backfilled_at column', /add column if not exists backfilled_at timestamptz/i],
+  ['stoppages table', /create table if not exists public\.stoppages\s*\(/i],
+  ['stoppages unique project date', /unique\s*\(\s*project_id\s*,\s*stoppage_date\s*\)/i],
+  ['stoppages updated_at trigger', /create trigger set_stoppages_updated_at/i],
+  ['stoppages RLS enabled', /alter table public\.stoppages enable row level security/i],
+  ['stoppages select policy', /"stoppages_select_project_access"/i],
+  ['stoppages insert policy', /"stoppages_insert_project_writer"/i],
+  ['stoppages update policy', /"stoppages_update_project_writer"/i],
+  ['stoppages delete policy', /"stoppages_delete_project_writer"/i],
+];
+const stoppagesFailures = stoppagesChecks.filter(([, pattern]) => !pattern.test(stoppagesSql));
+
+if (failures.length > 0 || seedFailures.length > 0 || crewFieldsFailures.length > 0 || stoppagesFailures.length > 0) {
   console.error('Supabase schema validation failed:');
   failures.forEach(([name]) => console.error(`- ${name}`));
   seedFailures.forEach(([name]) => console.error(`- ${name}`));
   crewFieldsFailures.forEach(([name]) => console.error(`- ${name}`));
+  stoppagesFailures.forEach(([name]) => console.error(`- ${name}`));
   process.exit(1);
 }
 
-const totalChecks = checks.length + seedChecks.length + crewFieldsChecks.length;
+const totalChecks = checks.length + seedChecks.length + crewFieldsChecks.length + stoppagesChecks.length;
 console.log(`validate-supabase-schema: ${totalChecks}/${totalChecks} checks passed`);
