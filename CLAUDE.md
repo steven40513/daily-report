@@ -58,6 +58,15 @@ npm run test:schema # Supabase schema 驗證
 - 使用者介面文字用繁體中文，面向非技術背景的工地人員，用詞要口語
 - 溝通語言：繁體中文
 
+## GitHub 更新流程（重要，完整版見討論紀錄十八）
+
+- Repo：`https://github.com/steven40513/daily-report`（公開，GitHub Pages 部署）
+- **改動前**先 `git fetch https://github.com/steven40513/daily-report.git main` 比對本機，確認沒分岔
+- Cowork/雲端沙箱**只能讀不能 push**（無 SSH 金鑰）→ push 請使用者跑 `git push origin main` 或交給本機的 Claude Code
+- 含 schema 變更時：**先在 Supabase SQL Editor 跑 migration，再 push**
+- 內部文件（討論紀錄、docs/superpowers/、docs/backend-data-plan.md）已在 .gitignore，**永不上傳**；絕不 force push
+- seed/diagnostics 檔案用 `REPLACE_WITH_*` 佔位符，不寫真實姓名/UUID
+
 ## 目前待辦（2026-07 初）
 
 - 多層級通報升級機制（需獨立設計：人員階級模型、通知管道、後端排程）
