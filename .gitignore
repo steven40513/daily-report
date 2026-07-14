@@ -1,2 +1,8 @@
 node_modules/
 .DS_Store
+.claude/
+
+# 內部文件：只留本機，不上傳公開 repo（2026-07-14 決策）
+營建日報系統_討論紀錄.md
+docs/backend-data-plan.md
+docs/superpowers/
