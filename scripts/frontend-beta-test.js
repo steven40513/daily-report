@@ -192,6 +192,24 @@ async function main() {
   assert('cloud report restores backfilled flag', mapped.backfilled === true);
   assert('cloud report restores backfilledAt', mapped.backfilledAt === '2026-07-14T10:00:00Z');
 
+  // 累計彙算測試（現場需求：申報與月結核對要看累積量）
+  const cumEntries = window.loadCrewEntries();
+  cumEntries.push({ id: 'cum-1', date: '2026-06-21', category: 'structure', subtype: '累計測試工', headcount: 3 });
+  cumEntries.push({ id: 'cum-2', date: '2026-06-22', category: 'structure', subtype: '累計測試工', headcount: 4 });
+  window.saveCrewEntries(cumEntries);
+  const crewCum = window.computeCrewCumulative('2026-06-22');
+  assert('crew cumulative sums across days', crewCum.bySubtype['累計測試工'] === 7);
+  assert('crew cumulative excludes later dates', window.computeCrewCumulative('2026-06-21').bySubtype['累計測試工'] === 3);
+  window.saveReport('2026-06-21', { date: '2026-06-21', materials: { concrete: [{ name: '累計測試材料', unit: '包', checked: true, qty: '5' }] }, equipment: {} });
+  window.saveReport('2026-06-22', { date: '2026-06-22', materials: { concrete: [{ name: '累計測試材料', unit: '包', checked: true, qty: '2.5' }] }, equipment: {} });
+  const matCumTotals = window.computeItemCumulative('2026-06-22', 'materials');
+  assert('material cumulative sums across days', matCumTotals['累計測試材料'] === 7.5);
+  assert('unchecked or invalid qty ignored in cumulative', window.computeItemCumulative('2026-06-20', 'materials')['累計測試材料'] === undefined);
+  window.goTo('screen-preview');
+  const pdfWithCum = document.getElementById('pdf-page-1').innerHTML;
+  assert('PDF includes cumulative column', pdfWithCum.includes('累計'));
+  assert('PDF crew section shows cumulative total', pdfWithCum.includes('開工累計'));
+
   window.goTo('screen-report-calendar');
   assert('calendar grid renders cells', document.querySelectorAll('#calendar-grid > div').length > 25);
 

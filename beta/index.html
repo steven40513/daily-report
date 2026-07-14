@@ -2811,6 +2811,58 @@ function saveCrewEntries(records){
   updateCrewTotal();
 }
 
+// ===== 累計彙算 =====
+// 現場需求：申報與月結核對需要看累積量（人數／材料／機具）。
+// 這組函式以本機資料彙算（開工日起）；已知限制：其他裝置填的日子
+// 若本機沒快取到就不會計入，之後的區間彙總查詢會再補雲端彙算。
+function computeCrewCumulative(uptoDate){
+  var bySubtype={};
+  var total=0;
+  loadCrewEntries().forEach(function(e){
+    if(!e.date||e.date>uptoDate)return;
+    var n=Number(e.headcount)||0;
+    bySubtype[e.subtype]=(bySubtype[e.subtype]||0)+n;
+    total+=n;
+  });
+  return {bySubtype:bySubtype,total:total};
+}
+// kind: 'materials' | 'equipment'；todayData 傳入當日畫面資料（可能還沒存檔）
+function computeItemCumulative(uptoDate,kind,todayData){
+  var settings=loadSettings();
+  var totals={};
+  function addFrom(bucket){
+    if(!bucket)return;
+    Object.keys(bucket).forEach(function(cat){
+      (bucket[cat]||[]).forEach(function(item){
+        if(!item.checked)return;
+        var q=parseFloat(item.qty);
+        if(isNaN(q))return;
+        totals[item.name]=(totals[item.name]||0)+q;
+      });
+    });
+  }
+  if(settings.startDate&&settings.startDate<=uptoDate){
+    var d=new Date(settings.startDate);
+    var end=new Date(uptoDate);
+    while(d<end){ // 不含 uptoDate 當日，當日資料另外處理
+      var ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      var rpt=loadReport(ds);
+      if(rpt)addFrom(rpt[kind]);
+      d.setDate(d.getDate()+1);
+    }
+  }
+  if(todayData){
+    addFrom(todayData[kind]);
+  }else{
+    var todayRpt=loadReport(uptoDate);
+    if(todayRpt)addFrom(todayRpt[kind]);
+  }
+  return totals;
+}
+function fmtCumulative(n){
+  return String(Math.round((Number(n)||0)*100)/100);
+}
+
 // ===== 停工紀錄 =====
 function loadStoppages(){
   return loadFromStore('stoppages')||[];
@@ -3922,20 +3974,22 @@ function renderPreview(){
   h+='<td style="font-weight:600;background:#f0f0f0">剩餘天數</td><td>'+remainDays+' 天</td></tr>';
   h+='</table>';
 
-  // 工別紀錄：逐筆列出
+  // 工別紀錄：逐筆列出（含開工至今累計人數）
   var crewEntries=data.crewEntries||[];
   var crewTotal=0;
   crewEntries.forEach(function(e){crewTotal+=(e.headcount||0)});
+  var crewCum=computeCrewCumulative(currentReportDate);
   h+='<table class="pdf-table" style="margin-bottom:6px">';
-  h+='<tr><td colspan="5" class="pdf-section">今日工別紀錄（合計 '+crewTotal+' 人）</td></tr>';
-  h+='<tr style="background:#f0f0f0"><th>工別</th><th style="width:10%;text-align:center">人數</th><th style="width:20%">位置</th><th style="width:15%">廠商</th><th>工作內容</th></tr>';
+  h+='<tr><td colspan="6" class="pdf-section">今日工別紀錄（本日合計 '+crewTotal+' 人／開工累計 '+crewCum.total+' 人）</td></tr>';
+  h+='<tr style="background:#f0f0f0"><th>工別</th><th style="width:9%;text-align:center">人數</th><th style="width:10%;text-align:center">累計</th><th style="width:18%">位置</th><th style="width:14%">廠商</th><th>工作內容</th></tr>';
   if(crewEntries.length===0){
-    h+='<tr><td colspan="5" style="text-align:center;color:#999;padding:10px">今日尚無工別紀錄</td></tr>';
+    h+='<tr><td colspan="6" style="text-align:center;color:#999;padding:10px">今日尚無工別紀錄</td></tr>';
   }else{
     crewEntries.forEach(function(e){
       h+='<tr>';
       h+='<td>'+escHtml(e.subtype||'')+'</td>';
       h+='<td style="text-align:center">'+(e.headcount||0)+'</td>';
+      h+='<td style="text-align:center">'+(crewCum.bySubtype[e.subtype]||0)+'</td>';
       h+='<td>'+escHtml(e.location||'')+'</td>';
       h+='<td>'+escHtml(e.contractor||'—')+'</td>';
       h+='<td style="font-size:11px">'+escHtml(e.workToday||'')+'</td>';
@@ -3961,27 +4015,29 @@ function renderPreview(){
     });
   }
 
+  var matCum=computeItemCumulative(currentReportDate,'materials',data);
+  var equipCum=computeItemCumulative(currentReportDate,'equipment',data);
   var maxRows=Math.max(matItems.length,equipItems.length,1);
   h+='<table class="pdf-table" style="margin-bottom:6px">';
-  h+='<tr><td colspan="3" class="pdf-section" style="width:50%">營建材料</td><td colspan="3" class="pdf-section" style="width:50%">機具設備</td></tr>';
-  h+='<tr style="background:#f0f0f0"><th>品名</th><th style="width:13%;text-align:right">數量</th><th style="width:12%">廠商</th><th>品名</th><th style="width:13%;text-align:right">數量</th><th style="width:12%">廠商</th></tr>';
+  h+='<tr><td colspan="4" class="pdf-section" style="width:50%">營建材料</td><td colspan="4" class="pdf-section" style="width:50%">機具設備</td></tr>';
+  h+='<tr style="background:#f0f0f0"><th>品名</th><th style="width:9%;text-align:right">數量</th><th style="width:10%;text-align:right">累計</th><th style="width:10%">廠商</th><th>品名</th><th style="width:9%;text-align:right">數量</th><th style="width:10%;text-align:right">累計</th><th style="width:10%">廠商</th></tr>';
   for(var i=0;i<maxRows;i++){
     h+='<tr>';
     if(matItems[i]){
-      h+='<td>'+escHtml(matItems[i].name)+'</td><td style="text-align:right">'+(matItems[i].qty||'—')+' '+escHtml(matItems[i].unit)+'</td><td style="font-size:11px">'+escHtml(matItems[i].vendor||'—')+'</td>';
+      h+='<td>'+escHtml(matItems[i].name)+'</td><td style="text-align:right">'+(matItems[i].qty||'—')+' '+escHtml(matItems[i].unit)+'</td><td style="text-align:right">'+fmtCumulative(matCum[matItems[i].name])+' '+escHtml(matItems[i].unit)+'</td><td style="font-size:11px">'+escHtml(matItems[i].vendor||'—')+'</td>';
     }else{
-      h+='<td></td><td></td><td></td>';
+      h+='<td></td><td></td><td></td><td></td>';
     }
     if(equipItems[i]){
-      h+='<td>'+escHtml(equipItems[i].name)+'</td><td style="text-align:right">'+(equipItems[i].qty||'—')+' '+escHtml(equipItems[i].unit)+'</td><td style="font-size:11px">'+escHtml(equipItems[i].vendor||'—')+'</td>';
+      h+='<td>'+escHtml(equipItems[i].name)+'</td><td style="text-align:right">'+(equipItems[i].qty||'—')+' '+escHtml(equipItems[i].unit)+'</td><td style="text-align:right">'+fmtCumulative(equipCum[equipItems[i].name])+' '+escHtml(equipItems[i].unit)+'</td><td style="font-size:11px">'+escHtml(equipItems[i].vendor||'—')+'</td>';
     }else{
-      h+='<td></td><td></td><td></td>';
+      h+='<td></td><td></td><td></td><td></td>';
     }
     h+='</tr>';
   }
   if(maxRows===0){
-    h+='<tr><td colspan="2" style="text-align:center;color:#999;padding:10px">尚未勾選</td>';
-    h+='<td colspan="2" style="text-align:center;color:#999;padding:10px">尚未勾選</td></tr>';
+    h+='<tr><td colspan="4" style="text-align:center;color:#999;padding:10px">尚未勾選</td>';
+    h+='<td colspan="4" style="text-align:center;color:#999;padding:10px">尚未勾選</td></tr>';
   }
   h+='</table>';
 
