@@ -91,10 +91,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .pdf-title{background:#1a1a1a;color:#fff;text-align:center;padding:8px 14px;font-size:15px;font-weight:700;letter-spacing:5px}
 .pdf-company{text-align:center;padding:5px 14px;font-size:12px;font-weight:600;border-bottom:2px solid #333;background:#f0f0f0}
 .pdf-body{padding:8px 14px}
-.pdf-table{width:100%;border-collapse:collapse;font-size:10px}
-.pdf-table th,.pdf-table td{border:1px solid #333;padding:3px 6px;text-align:left}
-.pdf-table th{background:#f0f0f0;font-weight:600;font-size:9.5px;color:#444}
-.pdf-section{font-weight:700;text-align:center;background:#e8e8e8;padding:4px;border:1px solid #333;font-size:10px}
+.pdf-table{width:100%;border-collapse:collapse;font-size:9.5px}
+.pdf-table th,.pdf-table td{border:1px solid #333;padding:2px 5px;text-align:left}
+.pdf-table th{background:#f0f0f0;font-weight:600;font-size:9px;color:#444}
+.pdf-section{font-weight:700;text-align:center;background:#e8e8e8;padding:3px;border:1px solid #333;font-size:9.5px}
 .pdf-page-header{text-align:center;font-size:11px;font-weight:700;color:#333;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #999}
 .pdf-footer{font-size:8px;color:#999;text-align:center;margin-top:6px;letter-spacing:1px}
 .info-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
@@ -4330,10 +4330,8 @@ function renderPreview(){
   h+='<table class="pdf-table" style="margin-bottom:6px">';
   h+='<tr><td style="width:18%;font-weight:600;background:#f0f0f0">專案名稱</td><td style="width:32%">'+escHtml(settings.projectName)+'</td>';
   h+='<td style="width:18%;font-weight:600;background:#f0f0f0">日報日期</td><td style="width:32%">'+currentReportDate+'</td></tr>';
-  h+='<tr><td style="font-weight:600;background:#f0f0f0">天　　氣</td><td>上午：'+(data.weather.am||'—')+' ／ 下午：'+(data.weather.pm||'—')+'</td>';
-  h+='<td style="font-weight:600;background:#f0f0f0">日期類別</td><td>週'+dow+'</td></tr>';
-  h+='<tr><td style="font-weight:600;background:#f0f0f0">開工日期</td><td>'+settings.startDate+'</td>';
-  h+='<td style="font-weight:600;background:#f0f0f0">竣工日期</td><td>'+settings.endDate+'</td></tr>';
+  h+='<tr><td style="font-weight:600;background:#f0f0f0">天　　氣</td><td>上午：'+(data.weather.am||'—')+' ／ 下午：'+(data.weather.pm||'—')+'（週'+dow+'）</td>';
+  h+='<td style="font-weight:600;background:#f0f0f0">工　　期</td><td>'+settings.startDate+' ～ '+settings.endDate+'</td></tr>';
   h+='<tr><td style="font-weight:600;background:#f0f0f0">施工天數</td><td>'+calDays+' 天</td>';
   h+='<td style="font-weight:600;background:#f0f0f0">剩餘天數</td><td>'+remainDays+' 天</td></tr>';
   h+='</table>';
@@ -4344,10 +4342,10 @@ function renderPreview(){
   crewEntries.forEach(function(e){crewTotal+=(e.headcount||0)});
   var crewCum=computeCrewCumulative(currentReportDate);
   h+='<table class="pdf-table" style="margin-bottom:6px">';
-  h+='<tr><td colspan="6" class="pdf-section">今日工別紀錄（本日合計 '+crewTotal+' 人／開工累計 '+crewCum.total+' 人）</td></tr>';
-  h+='<tr style="background:#f0f0f0"><th>工別</th><th style="width:9%;text-align:center">人數</th><th style="width:10%;text-align:center">累計</th><th style="width:18%">位置</th><th style="width:14%">廠商</th><th>工作內容</th></tr>';
+  h+='<tr><td colspan="7" class="pdf-section">今日工別紀錄（本日合計 '+crewTotal+' 人／開工累計 '+crewCum.total+' 人）</td></tr>';
+  h+='<tr style="background:#f0f0f0"><th>工別</th><th style="width:7%;text-align:center">人數</th><th style="width:8%;text-align:center">累計</th><th style="width:14%">位置</th><th style="width:12%">廠商</th><th style="width:26%">今日工作內容</th><th style="width:20%">明日工作內容</th></tr>';
   if(crewEntries.length===0){
-    h+='<tr><td colspan="6" style="text-align:center;color:#999;padding:10px">今日尚無工別紀錄</td></tr>';
+    h+='<tr><td colspan="7" style="text-align:center;color:#999;padding:10px">今日尚無工別紀錄</td></tr>';
   }else{
     crewEntries.forEach(function(e){
       h+='<tr>';
@@ -4360,7 +4358,8 @@ function renderPreview(){
       }else{
         h+='<td>'+escHtml(e.contractor||'—')+'</td>';
       }
-      h+='<td style="font-size:11px">'+escHtml(e.workToday||'')+'</td>';
+      h+='<td style="font-size:9.5px">'+escHtml(e.workToday||'')+'</td>';
+      h+='<td style="font-size:9.5px">'+escHtml(e.workTomorrow||'—')+'</td>';
       h+='</tr>';
     });
   }
@@ -4423,7 +4422,7 @@ function renderPreview(){
     h+='<td style="text-align:center;font-weight:600;background:#f0f0f0;font-size:10px">'+escHtml(k)+'</td>';
   });
   h+='</tr><tr>';
-  signerKeys.forEach(function(){h+='<td style="height:28px"></td>'});
+  signerKeys.forEach(function(){h+='<td style="height:22px"></td>'});
   h+='</tr></table>';
 
   h+='<div class="pdf-footer">第 1 頁</div>';
