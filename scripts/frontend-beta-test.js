@@ -257,6 +257,37 @@ async function main() {
   );
   assert('cloud vendor restored to local data', vendorMapped.materials.concrete[0].vendor === '砂石行A');
 
+  // 選填欄位（時段/工時/明日內容/代工）測試
+  window.addCrewEntry('structure', '鋼筋工');
+  const rebarEntry = window.loadCrewEntries().find(e => e.subtype === '鋼筋工' && e.date === window.currentReportDate);
+  window.updateCrewEntry(rebarEntry.id, 'headcount', 5);
+  window.updateCrewEntry(rebarEntry.id, 'location', '3F');
+  window.updateCrewEntry(rebarEntry.id, 'workToday', '版筋綁紮');
+  window.updateCrewEntry(rebarEntry.id, 'contractor', '鋼筋行B');
+  window.updateCrewEntry(rebarEntry.id, 'am', false);
+  window.updateCrewEntry(rebarEntry.id, 'pm', false);
+  window.alertMessages.length = 0;
+  window.goTo('screen-step2');
+  window.goToStep3IfValid();
+  assert('period rule blocks navigation', window.alertMessages.some(m => m.includes('時段')));
+  window.updateCrewEntry(rebarEntry.id, 'am', true);
+  window.updateCrewEntry(rebarEntry.id, 'pm', true);
+  window.updateCrewEntry(rebarEntry.id, 'isSubcontractor', true);
+  window.goToStep3IfValid();
+  assert('subcontractor name required before navigation', window.alertMessages.some(m => m.includes('代工廠商名稱')));
+  window.updateCrewEntry(rebarEntry.id, 'subcontractorName', '外包工程行C');
+  window.goToStep3IfValid();
+  assert('valid optional fields allow navigation', document.querySelector('.screen.active')?.id === 'screen-step3');
+  window.updateCrewEntry(rebarEntry.id, 'hours', 4.5);
+  window.updateCrewEntry(rebarEntry.id, 'workTomorrow', '續作版筋');
+  window.goTo('screen-step2');
+  const step2Text = document.getElementById('crew-list-area').textContent;
+  assert('optional fields toggle rendered', step2Text.includes('選填欄位'));
+  assert('subcontractor input auto-expanded when marked', step2Text.includes('此工項為代工'));
+  window.goTo('screen-preview');
+  const pdfSub = document.getElementById('pdf-page-1').innerHTML;
+  assert('PDF marks subcontractor in red', pdfSub.includes('外包工程行C') && pdfSub.includes('（代工）'));
+
   console.log(`frontend-beta-test: ${results.length}/${results.length} checks passed`);
 }
 

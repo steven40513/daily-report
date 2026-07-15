@@ -3565,12 +3565,108 @@ function buildCrewEntryCard(entry){
   removeBtn.textContent='刪除這筆紀錄';
   removeBtn.onclick=function(){removeCrewEntry(entry.id,entry.category)};
 
+  // ===== 選填欄位（收合式，避免拖慢每日必填流程）=====
+  var expanded=!!crewCardExpandedIds[entry.id]||crewEntryHasOptionalData(entry);
+  var moreToggle=document.createElement('div');
+  moreToggle.style.cssText='font-size:13px;color:var(--primary);cursor:pointer;margin-bottom:8px;font-weight:600';
+  var moreArea=document.createElement('div');
+  moreArea.style.display=expanded?'block':'none';
+  function setToggleText(open){moreToggle.textContent=open?'－ 收合選填欄位':'＋ 更多選填欄位（時段／工時／明日內容／代工）'}
+  setToggleText(expanded);
+  moreToggle.onclick=function(){
+    var open=moreArea.style.display==='none';
+    moreArea.style.display=open?'block':'none';
+    crewCardExpandedIds[entry.id]=open;
+    setToggleText(open);
+  };
+
+  // 時段（上午/下午，至少留一個——後端規則 period_am or period_pm）
+  var periodRow=document.createElement('div');
+  periodRow.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:8px';
+  var periodLabel=document.createElement('span');
+  periodLabel.style.cssText='font-size:13px;color:var(--text2);min-width:56px';
+  periodLabel.textContent='時段';
+  function makePeriodBtn(label,field,other){
+    var b=document.createElement('button');
+    b.type='button';
+    b.textContent=label;
+    function paint(){b.style.cssText='flex:1;padding:8px;border-radius:8px;font-size:14px;cursor:pointer;border:1.5px solid '+(entry[field]?'var(--primary)':'var(--border)')+';background:'+(entry[field]?'var(--primary-light)':'var(--white)')+';color:'+(entry[field]?'var(--primary)':'var(--text2)')}
+    paint();
+    b.onclick=function(){
+      if(entry[field]&&!entry[other]){alert('至少要保留一個時段（上午或下午）');return}
+      entry[field]=!entry[field];
+      updateCrewEntry(entry.id,field,entry[field]);
+      paint();
+    };
+    return b;
+  }
+  periodRow.appendChild(periodLabel);
+  periodRow.appendChild(makePeriodBtn('☀️ 上午','am','pm'));
+  periodRow.appendChild(makePeriodBtn('🌙 下午','pm','am'));
+
+  // 今日工時
+  var hoursRow=document.createElement('div');
+  hoursRow.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:8px';
+  var hoursLabel=document.createElement('span');
+  hoursLabel.style.cssText='font-size:13px;color:var(--text2);min-width:56px';
+  hoursLabel.textContent='今日工時';
+  var hoursInput=document.createElement('input');
+  hoursInput.type='number';hoursInput.min='0';hoursInput.step='0.5';hoursInput.placeholder='0';
+  hoursInput.value=entry.hours||'';
+  hoursInput.style.cssText='flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px';
+  hoursInput.oninput=function(){updateCrewEntry(entry.id,'hours',parseFloat(hoursInput.value)||0)};
+  var hoursUnit=document.createElement('span');
+  hoursUnit.style.cssText='font-size:13px;color:var(--text3)';
+  hoursUnit.textContent='hr';
+  hoursRow.appendChild(hoursLabel);hoursRow.appendChild(hoursInput);hoursRow.appendChild(hoursUnit);
+
+  // 明日工作內容
+  var tomorrowInput=document.createElement('textarea');
+  tomorrowInput.className='textarea';
+  tomorrowInput.placeholder='明日工作內容（選填）例：樑模組立、續作 B 區';
+  tomorrowInput.value=entry.workTomorrow||'';
+  tomorrowInput.style.cssText='width:100%;min-height:48px;margin-bottom:8px';
+  tomorrowInput.oninput=function(){updateCrewEntry(entry.id,'workTomorrow',tomorrowInput.value)};
+
+  // 代工標記
+  var subRow=document.createElement('label');
+  subRow.style.cssText='display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:8px;cursor:pointer';
+  var subCheck=document.createElement('input');
+  subCheck.type='checkbox';
+  subCheck.checked=!!entry.isSubcontractor;
+  var subText=document.createElement('span');
+  subText.textContent='此工項為代工';
+  subRow.appendChild(subCheck);subRow.appendChild(subText);
+  var subNameInput=document.createElement('input');
+  subNameInput.placeholder='代工廠商名稱（勾選代工時必填）';
+  subNameInput.value=entry.subcontractorName||'';
+  subNameInput.style.cssText='width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:8px;display:'+(entry.isSubcontractor?'block':'none');
+  subNameInput.oninput=function(){updateCrewEntry(entry.id,'subcontractorName',subNameInput.value)};
+  subCheck.onchange=function(){
+    updateCrewEntry(entry.id,'isSubcontractor',subCheck.checked);
+    subNameInput.style.display=subCheck.checked?'block':'none';
+  };
+
+  moreArea.appendChild(periodRow);
+  moreArea.appendChild(hoursRow);
+  moreArea.appendChild(tomorrowInput);
+  moreArea.appendChild(subRow);
+  moreArea.appendChild(subNameInput);
+
   card.appendChild(header);
   card.appendChild(locationInput);
   card.appendChild(contentInput);
   card.appendChild(contractorInput);
+  card.appendChild(moreToggle);
+  card.appendChild(moreArea);
   card.appendChild(removeBtn);
   return card;
+}
+
+// 選填欄位展開狀態（重新渲染時不收合）
+var crewCardExpandedIds={};
+function crewEntryHasOptionalData(entry){
+  return !!(entry.workTomorrow||(entry.hours&&entry.hours>0)||entry.isSubcontractor||!(entry.am&&entry.pm));
 }
 
 function updateCrewTotal(){
@@ -3593,6 +3689,18 @@ function goToStep3IfValid(){
   });
   if(invalid){
     alert('「'+invalid.subtype+'」還有必填欄位（本日人數、工作位置、工作內容、廠商）沒填完整');
+    return;
+  }
+  // 後端規則：period_am or period_pm 至少一個（正常操作下 UI 已擋，這裡是保險）
+  var badPeriod=entries.find(function(e){return !e.am&&!e.pm});
+  if(badPeriod){
+    alert('「'+badPeriod.subtype+'」的時段至少要選上午或下午');
+    return;
+  }
+  // 後端規則：勾代工必填代工廠商名稱
+  var badSub=entries.find(function(e){return e.isSubcontractor&&(!e.subcontractorName||!e.subcontractorName.trim())});
+  if(badSub){
+    alert('「'+badSub.subtype+'」已勾選代工，請填寫代工廠商名稱');
     return;
   }
   goTo('screen-step3');
@@ -4246,7 +4354,11 @@ function renderPreview(){
       h+='<td style="text-align:center">'+(e.headcount||0)+'</td>';
       h+='<td style="text-align:center">'+(crewCum.bySubtype[e.subtype]||0)+'</td>';
       h+='<td>'+escHtml(e.location||'')+'</td>';
-      h+='<td>'+escHtml(e.contractor||'—')+'</td>';
+      if(e.isSubcontractor){
+        h+='<td><span style="color:#c00;font-weight:700">'+escHtml(e.subcontractorName||e.contractor||'代工')+'（代工）</span></td>';
+      }else{
+        h+='<td>'+escHtml(e.contractor||'—')+'</td>';
+      }
       h+='<td style="font-size:11px">'+escHtml(e.workToday||'')+'</td>';
       h+='</tr>';
     });
