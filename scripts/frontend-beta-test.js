@@ -213,6 +213,36 @@ async function main() {
   window.goTo('screen-report-calendar');
   assert('calendar grid renders cells', document.querySelectorAll('#calendar-grid > div').length > 25);
 
+  // 區間彙總查詢測試（月結核對：總量＋逐日明細）
+  const rangeDays = window.collectRangeDataLocal('2026-06-21', '2026-06-22');
+  assert('range collects material days', rangeDays['2026-06-21'] && rangeDays['2026-06-21'].materials.length === 1);
+  assert('range collects crew entries', rangeDays['2026-06-21'].crew.some(c => c.subtype === '累計測試工'));
+  const agg = window.aggregateRange(rangeDays);
+  assert('range aggregates material total', agg.sections.materials['累計測試材料'].total === 7.5);
+  assert('range keeps daily detail', agg.sections.materials['累計測試材料'].daily.length === 2);
+  assert('range aggregates crew total', agg.sections.crew['累計測試工'].total === 7);
+
+  window.goTo('screen-summary-query');
+  assert('summary screen becomes active', document.querySelector('.screen.active')?.id === 'screen-summary-query');
+  document.getElementById('summary-start').value = '2026-06-21';
+  document.getElementById('summary-end').value = '2026-06-22';
+  await window.runSummaryQuery();
+  const resultsHtml = document.getElementById('summary-results').textContent;
+  assert('summary renders material total', resultsHtml.includes('累計測試材料') && resultsHtml.includes('7.5 包'));
+  assert('summary renders crew section', resultsHtml.includes('累計測試工'));
+  assert('summary note says local only', document.getElementById('summary-source-note').textContent.includes('本機'));
+
+  // 雲端覆蓋邏輯：同一天以雲端為準
+  const realCollectCloud = window.collectRangeDataCloud;
+  window.collectRangeDataCloud = async () => ({
+    '2026-06-22': { materials: [{ name: '累計測試材料', unit: '包', qty: 9, vendor: '雲端廠商' }], equipment: [], crew: [] }
+  });
+  await window.runSummaryQuery();
+  const cloudResults = document.getElementById('summary-results').textContent;
+  assert('cloud day overrides local day', cloudResults.includes('14 包')); // 5(本機 06-21) + 9(雲端 06-22)
+  assert('summary note mentions cloud', document.getElementById('summary-source-note').textContent.includes('雲端'));
+  window.collectRangeDataCloud = realCollectCloud;
+
   console.log(`frontend-beta-test: ${results.length}/${results.length} checks passed`);
 }
 

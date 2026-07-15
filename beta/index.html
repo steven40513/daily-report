@@ -696,7 +696,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   <div class="top-bar">
     <div class="back" onclick="goTo('screen-home')">←</div>
     <h1>歷史日報</h1>
-    <div class="back" onclick="goTo('screen-report-calendar')" title="缺件行事曆">📅</div>
+    <div style="display:flex;gap:14px">
+      <div class="back" onclick="goTo('screen-summary-query')" title="區間彙總查詢">📊</div>
+      <div class="back" onclick="goTo('screen-report-calendar')" title="缺件行事曆">📅</div>
+    </div>
   </div>
   <div class="content fade-in">
     <div id="history-list-container"></div>
@@ -734,6 +737,38 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   <div class="bottom-nav">
     <div class="nav-item" onclick="goTo('screen-home')"><div class="nav-icon">🏠</div>首頁</div>
     <div class="nav-item" onclick="goTo('screen-history')"><div class="nav-icon">📁</div>歷史日報</div>
+    <div class="nav-item" onclick="goTo('screen-settings')"><div class="nav-icon">⚙️</div>設定</div>
+  </div>
+</div>
+
+<!-- ========== 區間彙總查詢（月結核對用）========== -->
+<div class="screen" id="screen-summary-query">
+  <div class="top-bar">
+    <div class="back" onclick="goTo('screen-history')">←</div>
+    <h1>區間彙總查詢</h1>
+    <div></div>
+  </div>
+  <div class="content fade-in">
+    <div class="card">
+      <div class="card-title">📊 查詢區間</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button class="btn btn-outline" style="flex:1;padding:8px" onclick="setSummaryRange('week')">本週</button>
+        <button class="btn btn-outline" style="flex:1;padding:8px" onclick="setSummaryRange('month')">本月</button>
+        <button class="btn btn-outline" style="flex:1;padding:8px" onclick="setSummaryRange('last-month')">上月</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+        <input type="date" id="summary-start" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:15px">
+        <span style="color:var(--text3)">～</span>
+        <input type="date" id="summary-end" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:15px">
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="runSummaryQuery()">查詢</button>
+      <div id="summary-source-note" style="font-size:12px;color:var(--text3);margin-top:8px"></div>
+    </div>
+    <div id="summary-results"></div>
+  </div>
+  <div class="bottom-nav">
+    <div class="nav-item" onclick="goTo('screen-home')"><div class="nav-icon">🏠</div>首頁</div>
+    <div class="nav-item active"><div class="nav-icon">📁</div>歷史日報</div>
     <div class="nav-item" onclick="goTo('screen-settings')"><div class="nav-icon">⚙️</div>設定</div>
   </div>
 </div>
@@ -2622,6 +2657,7 @@ function goTo(id){
   if(id==='screen-settings'){loadSettingsUI();}
   if(id==='screen-step5'){updateLogList();}
   if(id==='screen-history'){updateHistoryList();}
+  if(id==='screen-summary-query'){initSummaryQuery();}
   if(id==='screen-report-calendar'){
     initCalendarView();
     document.getElementById('calendar-day-detail').style.display='none';
@@ -2861,6 +2897,222 @@ function computeItemCumulative(uptoDate,kind,todayData){
 }
 function fmtCumulative(n){
   return String(Math.round((Number(n)||0)*100)/100);
+}
+
+// ===== 區間彙總查詢（月結核對用）=====
+// 現場工作流程：月結時把某段期間的用料/機具/人數拉出來，跟廠商請款單核對。
+// 本機資料先算，登入時再用雲端資料覆蓋（別台裝置填的日子本機沒有，雲端才齊）。
+function eachDateInRange(start,end,fn){
+  var d=new Date(start);
+  var e=new Date(end);
+  while(d<=e){
+    fn(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+    d.setDate(d.getDate()+1);
+  }
+}
+function flattenReportItems(bucket){
+  var rows=[];
+  Object.keys(bucket||{}).forEach(function(cat){
+    (bucket[cat]||[]).forEach(function(item){
+      if(!item.checked)return;
+      var q=parseFloat(item.qty);
+      rows.push({name:item.name||'',unit:item.unit||'',qty:isNaN(q)?0:q,vendor:item.vendor||''});
+    });
+  });
+  return rows;
+}
+function collectRangeDataLocal(start,end){
+  var days={};
+  eachDateInRange(start,end,function(ds){
+    var rpt=loadReport(ds);
+    if(rpt){
+      days[ds]={
+        materials:flattenReportItems(rpt.materials),
+        equipment:flattenReportItems(rpt.equipment),
+        crew:[]
+      };
+    }
+  });
+  loadCrewEntries().forEach(function(e){
+    if(!e.date||e.date<start||e.date>end)return;
+    if(!days[e.date])days[e.date]={materials:[],equipment:[],crew:[]};
+    days[e.date].crew.push({subtype:e.subtype||'',headcount:Number(e.headcount)||0,contractor:e.contractor||''});
+  });
+  return days;
+}
+async function collectRangeDataCloud(start,end){
+  if(!isCloudReady())return null;
+  var client=getSupabaseClient();
+  if(!client)return null;
+  var repResult=await client.from('daily_reports')
+    .select('id,report_date')
+    .eq('project_id',cloudState.projectId)
+    .gte('report_date',start)
+    .lte('report_date',end);
+  if(repResult.error)throw repResult.error;
+  var reports=repResult.data||[];
+  if(reports.length===0)return {};
+  var idToDate={};
+  var ids=reports.map(function(r){idToDate[r.id]=r.report_date;return r.id});
+  var itemResult=await client.from('report_items')
+    .select('report_id,item_type,name,unit,quantity,is_checked')
+    .in('report_id',ids);
+  if(itemResult.error)throw itemResult.error;
+  var logResult=await client.from('work_logs')
+    .select('report_id,title,crew_subtype,headcount,contractor_unit')
+    .in('report_id',ids);
+  if(logResult.error)throw logResult.error;
+  var days={};
+  reports.forEach(function(r){days[r.report_date]={materials:[],equipment:[],crew:[]}});
+  (itemResult.data||[]).forEach(function(item){
+    var ds=idToDate[item.report_id];
+    if(!ds||!item.is_checked)return;
+    var row={name:item.name||'',unit:item.unit||'',qty:Number(item.quantity)||0,vendor:''};
+    if(item.item_type==='material')days[ds].materials.push(row);
+    else if(item.item_type==='equipment')days[ds].equipment.push(row);
+  });
+  (logResult.data||[]).forEach(function(log){
+    var ds=idToDate[log.report_id];
+    if(!ds)return;
+    days[ds].crew.push({
+      subtype:log.crew_subtype||log.title||'',
+      headcount:Number(log.headcount)||0,
+      contractor:log.contractor_unit||''
+    });
+  });
+  return days;
+}
+function aggregateRange(days){
+  var sections={crew:{},materials:{},equipment:{}};
+  Object.keys(days).sort().forEach(function(ds){
+    var day=days[ds];
+    (day.crew||[]).forEach(function(c){
+      if(!c.subtype)return;
+      if(!sections.crew[c.subtype])sections.crew[c.subtype]={unit:'人',total:0,daily:[]};
+      sections.crew[c.subtype].total+=c.headcount;
+      sections.crew[c.subtype].daily.push({date:ds,qty:c.headcount,vendor:c.contractor});
+    });
+    ['materials','equipment'].forEach(function(kind){
+      (day[kind]||[]).forEach(function(item){
+        if(!item.name)return;
+        if(!sections[kind][item.name])sections[kind][item.name]={unit:item.unit,total:0,daily:[]};
+        sections[kind][item.name].total+=item.qty;
+        sections[kind][item.name].daily.push({date:ds,qty:item.qty,vendor:item.vendor});
+      });
+    });
+  });
+  return {sections:sections,dayCount:Object.keys(days).length};
+}
+function setSummaryRange(type){
+  var today=new Date(getTodayStr());
+  var start,end;
+  if(type==='week'){
+    var dow=today.getDay()||7; // 週一為一週開始
+    start=new Date(today);start.setDate(today.getDate()-dow+1);
+    end=today;
+  }else if(type==='month'){
+    start=new Date(today.getFullYear(),today.getMonth(),1);
+    end=today;
+  }else{ // last-month
+    start=new Date(today.getFullYear(),today.getMonth()-1,1);
+    end=new Date(today.getFullYear(),today.getMonth(),0);
+  }
+  function fmt(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+  document.getElementById('summary-start').value=fmt(start);
+  document.getElementById('summary-end').value=fmt(end);
+  runSummaryQuery();
+}
+async function runSummaryQuery(){
+  var start=document.getElementById('summary-start').value;
+  var end=document.getElementById('summary-end').value;
+  var note=document.getElementById('summary-source-note');
+  if(!start||!end){if(note)note.textContent='請先選擇起訖日期';return}
+  if(start>end){if(note)note.textContent='起始日期不能晚於結束日期';return}
+  var days=collectRangeDataLocal(start,end);
+  var sourceText='資料來源：本機（未登入，其他裝置填的日子不會計入）';
+  try{
+    var cloudDays=await collectRangeDataCloud(start,end);
+    if(cloudDays){
+      // 雲端優先：同一天以雲端為準（多裝置情境下雲端才是完整版）
+      Object.keys(cloudDays).forEach(function(ds){days[ds]=cloudDays[ds]});
+      sourceText='資料來源：雲端＋本機（同一天以雲端為準）';
+    }
+  }catch(e){
+    console.warn('區間彙總雲端讀取失敗：',e);
+    sourceText='雲端讀取失敗，僅顯示本機資料';
+  }
+  if(note)note.textContent=sourceText;
+  renderSummaryResults(aggregateRange(days),start,end);
+}
+function renderSummaryResults(agg,start,end){
+  var container=document.getElementById('summary-results');
+  if(!container)return;
+  container.innerHTML='';
+  var sectionDefs=[
+    {key:'crew',title:'👷 人員（工別）',vendorLabel:'廠商'},
+    {key:'materials',title:'🧱 營建材料',vendorLabel:'廠商'},
+    {key:'equipment',title:'🚜 機具設備',vendorLabel:'廠商'}
+  ];
+  var hasAny=false;
+  sectionDefs.forEach(function(def){
+    var items=agg.sections[def.key];
+    var names=Object.keys(items);
+    if(names.length===0)return;
+    hasAny=true;
+    var card=document.createElement('div');
+    card.className='card';
+    var title=document.createElement('div');
+    title.className='card-title';
+    title.textContent=def.title;
+    card.appendChild(title);
+    names.sort().forEach(function(name){
+      var it=items[name];
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer';
+      var left=document.createElement('div');
+      var nameDiv=document.createElement('div');
+      nameDiv.style.cssText='font-weight:600;font-size:15px';
+      nameDiv.textContent=name;
+      var subDiv=document.createElement('div');
+      subDiv.style.cssText='font-size:12px;color:var(--text3)';
+      subDiv.textContent=it.daily.length+' 筆紀錄，點擊看逐日明細';
+      left.appendChild(nameDiv);left.appendChild(subDiv);
+      var right=document.createElement('div');
+      right.style.cssText='font-weight:700;font-size:16px;color:var(--primary)';
+      right.textContent=fmtCumulative(it.total)+' '+it.unit;
+      row.appendChild(left);row.appendChild(right);
+      // 逐日明細（預設收合）
+      var detail=document.createElement('div');
+      detail.style.cssText='display:none;background:var(--bg);border-radius:8px;padding:8px 12px;margin:4px 0 8px';
+      it.daily.forEach(function(d){
+        var line=document.createElement('div');
+        line.style.cssText='display:flex;justify-content:space-between;font-size:13px;padding:4px 0;color:var(--text2)';
+        var dateSpan=document.createElement('span');
+        dateSpan.textContent=d.date+(d.vendor?'（'+d.vendor+'）':'');
+        var qtySpan=document.createElement('span');
+        qtySpan.textContent=fmtCumulative(d.qty)+' '+it.unit;
+        line.appendChild(dateSpan);line.appendChild(qtySpan);
+        detail.appendChild(line);
+      });
+      row.onclick=function(){detail.style.display=detail.style.display==='none'?'block':'none'};
+      card.appendChild(row);
+      card.appendChild(detail);
+    });
+    container.appendChild(card);
+  });
+  if(!hasAny){
+    var empty=document.createElement('div');
+    empty.style.cssText='text-align:center;padding:40px 20px;color:var(--text3);font-size:15px';
+    empty.textContent=start+' ～ '+end+' 沒有任何日報資料';
+    container.appendChild(empty);
+  }
+}
+function initSummaryQuery(){
+  var startInput=document.getElementById('summary-start');
+  var endInput=document.getElementById('summary-end');
+  if(startInput&&!startInput.value){
+    setSummaryRange('month'); // 預設本月（會自動查詢一次）
+  }
 }
 
 // ===== 停工紀錄 =====
