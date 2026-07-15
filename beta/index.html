@@ -195,6 +195,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
       </div>
     </div>
 
+    <div class="card" id="home-overview-entry" onclick="goTo('screen-project-overview')" style="cursor:pointer;display:none">
+      <div class="card-title"><div class="icon" style="background:var(--primary-light);color:var(--primary)">📋</div>各專案總覽</div>
+      <p style="font-size:13px;color:var(--text2)">所有工地今日日報繳交狀態，缺件一眼看出</p>
+    </div>
+
     <div class="card" onclick="goTo('screen-settings')" style="cursor:pointer">
       <div class="card-title"><div class="icon" style="background:var(--gray-light);color:var(--gray)">⚙️</div>專案設定</div>
       <p style="font-size:13px;color:var(--text2)">管理專案資訊、預設材料清單、機具清單、工種分類</p>
@@ -564,12 +569,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
     <div class="progress-dot done"></div>
     <div class="progress-dot active"></div>
   </div>
-  <div class="step-label">步驟 5 / 5 — 備註</div>
+  <div class="step-label">步驟 5 / 5 — 備註與照片</div>
   <div class="content fade-in">
 
     <div class="card">
       <div class="card-title">📎 備註</div>
       <textarea class="textarea" placeholder="特殊事項：停工原因、業主巡查、安全事件等..." style="min-height:70px"></textarea>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📷 現場照片 <span id="photo-count-label" style="font-weight:400;font-size:13px;color:var(--text3)"></span></div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:10px">拍照或選相簿照片，會以附件頁放進日報 PDF（每日最多 6 張）</p>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <label class="btn btn-outline" style="flex:1;text-align:center;cursor:pointer">📸 拍照
+          <input type="file" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoFiles(this.files);this.value=''">
+        </label>
+        <label class="btn btn-outline" style="flex:1;text-align:center;cursor:pointer">🖼️ 選取照片
+          <input type="file" accept="image/*" multiple style="display:none" onchange="handlePhotoFiles(this.files);this.value=''">
+        </label>
+      </div>
+      <div id="photo-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
     </div>
 
     <div style="display:flex;gap:8px;margin-top:8px">
@@ -736,6 +755,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   </div>
   <div class="bottom-nav">
     <div class="nav-item" onclick="goTo('screen-home')"><div class="nav-icon">🏠</div>首頁</div>
+    <div class="nav-item" onclick="goTo('screen-history')"><div class="nav-icon">📁</div>歷史日報</div>
+    <div class="nav-item" onclick="goTo('screen-settings')"><div class="nav-icon">⚙️</div>設定</div>
+  </div>
+</div>
+
+<!-- ========== 各專案總覽（管理層用）========== -->
+<div class="screen" id="screen-project-overview">
+  <div class="top-bar">
+    <div class="back" onclick="goTo('screen-home')">←</div>
+    <h1>各專案總覽</h1>
+    <div></div>
+  </div>
+  <div class="content fade-in">
+    <p style="font-size:13px;color:var(--text2);margin-bottom:10px">今日各工地日報繳交狀態，點卡片可切換到該專案查看。</p>
+    <div id="overview-list"></div>
+  </div>
+  <div class="bottom-nav">
+    <div class="nav-item active"><div class="nav-icon">🏠</div>首頁</div>
     <div class="nav-item" onclick="goTo('screen-history')"><div class="nav-icon">📁</div>歷史日報</div>
     <div class="nav-item" onclick="goTo('screen-settings')"><div class="nav-icon">⚙️</div>設定</div>
   </div>
@@ -1404,7 +1441,13 @@ async function syncCurrentReportToSupabase(targetDate){
     if(workLogRows.length>0){
       await client.from('work_logs').insert(workLogRows).then(function(result){assertSupabaseOk(result,'同步施工紀錄失敗')});
     }
-    updateSupabaseStatus('已同步 '+syncDate+' 日報到雲端：'+new Date().toLocaleTimeString('zh-TW'),false);
+    // 照片上傳：失敗不影響日報同步結果，提示可重試
+    try{
+      var photoCount=await uploadPendingPhotos(reportId,syncDate);
+      updateSupabaseStatus('已同步 '+syncDate+' 日報到雲端'+(photoCount>0?'（含 '+photoCount+' 張照片）':'')+'：'+new Date().toLocaleTimeString('zh-TW'),false);
+    }catch(photoErr){
+      updateSupabaseStatus('日報已同步，但照片上傳失敗：'+(photoErr.message||'未知錯誤')+'，再按一次同步可重試。',true);
+    }
     return reportId;
   }catch(e){
     updateSupabaseStatus('雲端同步失敗：'+(e.message||'未知錯誤'),true);
@@ -1568,6 +1611,94 @@ function updateProjectSwitcher(){
   var icon=document.getElementById('project-switch-icon');
   if(icon){
     icon.style.display=cloudState.projects.length>1?'inline':'none';
+  }
+  // 多專案（管理層）才顯示總覽入口
+  var overviewEntry=document.getElementById('home-overview-entry');
+  if(overviewEntry){
+    overviewEntry.style.display=cloudState.projects.length>1?'block':'none';
+  }
+}
+
+// ===== 各專案總覽（管理層 MVP）=====
+// 老闆每天想知道的一句話：「哪些工地今天交了日報、現場狀況正不正常」。
+// MVP：每專案一張卡（今日狀態＋連續缺件警示），主動通知（多層級通報）留待後續。
+async function renderProjectOverview(){
+  var container=document.getElementById('overview-list');
+  if(!container)return;
+  container.innerHTML='';
+  if(!isCloudReady()||cloudState.projects.length===0){
+    container.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:15px">需要登入才能看各專案狀態<br><span style="font-size:13px">請先到設定頁登入</span></div>';
+    return;
+  }
+  container.innerHTML='<div style="text-align:center;padding:30px;color:var(--text3)">讀取各專案狀態中...</div>';
+  try{
+    var client=getSupabaseClient();
+    if(!client)throw new Error('尚未連線');
+    var today=getTodayStr();
+    var from=new Date(today);from.setDate(from.getDate()-7);
+    var fromStr=from.getFullYear()+'-'+String(from.getMonth()+1).padStart(2,'0')+'-'+String(from.getDate()).padStart(2,'0');
+    var ids=cloudState.projects.map(function(p){return p.id});
+    var repResult=await client.from('daily_reports')
+      .select('project_id,report_date')
+      .in('project_id',ids)
+      .gte('report_date',fromStr)
+      .lte('report_date',today);
+    if(repResult.error)throw repResult.error;
+    var stopResult=await client.from('stoppages')
+      .select('project_id,stoppage_date')
+      .in('project_id',ids)
+      .gte('stoppage_date',fromStr);
+    if(stopResult.error)throw stopResult.error;
+    var filled={};(repResult.data||[]).forEach(function(r){(filled[r.project_id]=filled[r.project_id]||{})[r.report_date]=true});
+    var stopped={};(stopResult.data||[]).forEach(function(s){(stopped[s.project_id]=stopped[s.project_id]||{})[s.stoppage_date]=true});
+    container.innerHTML='';
+    cloudState.projects.forEach(function(proj){
+      var pf=filled[proj.id]||{};
+      var ps=stopped[proj.id]||{};
+      var todayStatus=pf[today]?'filled':(ps[today]?'stoppage':'pending');
+      // 從昨天往回數連續缺件（已填或停工都中斷計數，最多看 7 天）
+      var missing=0;
+      for(var i=1;i<=7;i++){
+        var d=new Date(today);d.setDate(d.getDate()-i);
+        var ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+        if(proj.start_date&&ds<proj.start_date)break;
+        if(pf[ds]||ps[ds])break;
+        missing++;
+      }
+      var card=document.createElement('div');
+      card.className='card';
+      card.style.cursor='pointer';
+      (function(pid){card.onclick=function(){switchProject(pid).then(function(){goTo('screen-home')})}})(proj.id);
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;justify-content:space-between;align-items:center';
+      var left=document.createElement('div');
+      var nameDiv=document.createElement('div');
+      nameDiv.style.cssText='font-weight:700;font-size:16px';
+      nameDiv.textContent=proj.name||'（未命名專案）';
+      var subDiv=document.createElement('div');
+      subDiv.style.cssText='font-size:13px;color:var(--text2);margin-top:2px';
+      var dayInfo=proj.start_date?('開工第 '+(daysBetween(proj.start_date,today)+1)+' 天'):'';
+      subDiv.textContent=dayInfo+(missing>0?('｜連續缺件 '+missing+' 天'):'');
+      if(missing>=2)subDiv.style.color='var(--red)';
+      left.appendChild(nameDiv);left.appendChild(subDiv);
+      var badge=document.createElement('span');
+      if(todayStatus==='filled'){
+        badge.textContent='✅ 今日已交';
+        badge.style.cssText='font-size:13px;font-weight:600;color:var(--green);background:var(--green-light);padding:4px 10px;border-radius:12px';
+      }else if(todayStatus==='stoppage'){
+        badge.textContent='⛔ 今日停工';
+        badge.style.cssText='font-size:13px;font-weight:600;color:var(--gray);background:var(--gray-light);padding:4px 10px;border-radius:12px';
+      }else{
+        badge.textContent='⏳ 今日未交';
+        badge.style.cssText='font-size:13px;font-weight:600;color:var(--amber);background:var(--amber-light);padding:4px 10px;border-radius:12px';
+      }
+      row.appendChild(left);row.appendChild(badge);
+      card.appendChild(row);
+      container.appendChild(card);
+    });
+  }catch(e){
+    console.warn('專案總覽讀取失敗：',e);
+    container.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:15px">讀取失敗<br><span style="font-size:13px">'+escHtml(e.message||'請確認網路後重試')+'</span></div>';
   }
 }
 
@@ -2659,9 +2790,10 @@ function goTo(id){
   if(id==='screen-home'){updateWeeklyStats();updateMissingReportBanner();}
   if(id==='screen-step2'){renderCrewCategories();switchCrewCat(currentCrewCat);updateCrewTotal();}
   if(id==='screen-settings'){loadSettingsUI();}
-  if(id==='screen-step5'){updateLogList();}
+  if(id==='screen-step5'){updateLogList();renderPhotoGrid();}
   if(id==='screen-history'){updateHistoryList();}
   if(id==='screen-summary-query'){initSummaryQuery();}
+  if(id==='screen-project-overview'){renderProjectOverview();}
   if(id==='screen-report-calendar'){
     initCalendarView();
     document.getElementById('calendar-day-detail').style.display='none';
@@ -2682,6 +2814,7 @@ function goTo(id){
 // 頁面載入時初始化
 document.addEventListener('DOMContentLoaded',function(){
   initApp();
+  cleanupOldPhotoData();
   handleAuthCallback();
   // 提前檢查：是否在 App 內建瀏覽器中，先警告再讓使用者點登入
   checkInAppBrowserOnLoad();
@@ -3117,6 +3250,162 @@ function initSummaryQuery(){
   if(startInput&&!startInput.value){
     setSummaryRange('month'); // 預設本月（會自動查詢一次）
   }
+}
+
+// ===== 現場照片 =====
+// 需求：拍照/相簿選取，照片以附件頁放進日報 PDF，說明當日進度與現場狀況。
+// 儲存鏈：手機端壓縮 → 本機暫存 → 同步時上傳 Supabase Storage →
+// 已上傳且超過 3 天的照片清掉本機 base64（只留雲端路徑），localStorage 不爆。
+var PHOTO_DAILY_LIMIT=6;
+function loadPhotos(){return loadFromStore('photos')||[]}
+function savePhotos(records){saveToStore('photos',records)}
+function getPhotosForDate(dateStr){return loadPhotos().filter(function(p){return p.date===dateStr})}
+function addPhotoRecord(dateStr,dataUrl){
+  var photos=loadPhotos();
+  if(photos.filter(function(p){return p.date===dateStr}).length>=PHOTO_DAILY_LIMIT)return false;
+  photos.push({
+    id:'photo-'+Date.now()+'-'+Math.random().toString(36).substr(2,5),
+    date:dateStr,dataUrl:dataUrl,storagePath:null,uploaded:false,
+    createdAt:new Date().toISOString()
+  });
+  savePhotos(photos);
+  return true;
+}
+function removePhoto(photoId){
+  var photos=loadPhotos();
+  var photo=photos.find(function(p){return p.id===photoId});
+  savePhotos(photos.filter(function(p){return p.id!==photoId}));
+  if(photo&&photo.uploaded&&photo.storagePath&&isCloudReady()){
+    var client=getSupabaseClient();
+    if(client){
+      client.storage.from('report-photos').remove([photo.storagePath])
+        .then(function(r){if(r&&r.error)throw r.error})
+        .catch(function(e){console.warn('雲端照片刪除失敗：',e)});
+      client.from('report_photos').delete().eq('storage_path',photo.storagePath)
+        .then(function(r){if(r&&r.error)console.warn('照片紀錄刪除失敗：',r.error)});
+    }
+  }
+  renderPhotoGrid();
+}
+function compressImage(file,cb){
+  var reader=new FileReader();
+  reader.onload=function(){
+    var img=new Image();
+    img.onload=function(){
+      var MAX=1280;
+      var w=img.width,h=img.height;
+      if(w>MAX||h>MAX){var s=MAX/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s)}
+      var canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      cb(canvas.toDataURL('image/jpeg',0.7));
+    };
+    img.onerror=function(){cb(null)};
+    img.src=reader.result;
+  };
+  reader.onerror=function(){cb(null)};
+  reader.readAsDataURL(file);
+}
+function handlePhotoFiles(fileList){
+  var files=Array.prototype.slice.call(fileList||[]);
+  if(files.length===0)return;
+  var remaining=PHOTO_DAILY_LIMIT-getPhotosForDate(currentReportDate).length;
+  if(remaining<=0){
+    alert('今天已達 '+PHOTO_DAILY_LIMIT+' 張上限，請先移除不需要的照片');
+    return;
+  }
+  if(files.length>remaining){
+    alert('每日最多 '+PHOTO_DAILY_LIMIT+' 張，多出的 '+(files.length-remaining)+' 張會略過');
+  }
+  files.slice(0,remaining).forEach(function(f){
+    compressImage(f,function(dataUrl){
+      if(!dataUrl){alert('照片讀取失敗，請重試');return}
+      try{
+        addPhotoRecord(currentReportDate,dataUrl);
+      }catch(e){
+        // localStorage 滿了（QuotaExceeded）
+        alert('手機儲存空間不足，請先登入同步上雲、或移除幾張舊照片再試。');
+        return;
+      }
+      renderPhotoGrid();
+    });
+  });
+}
+function renderPhotoGrid(){
+  var grid=document.getElementById('photo-grid');
+  if(!grid)return;
+  grid.innerHTML='';
+  var photos=getPhotosForDate(currentReportDate);
+  var label=document.getElementById('photo-count-label');
+  if(label)label.textContent=photos.length>0?'（'+photos.length+'/'+PHOTO_DAILY_LIMIT+'）':'';
+  photos.forEach(function(p){
+    var cell=document.createElement('div');
+    cell.style.cssText='border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--gray-light)';
+    if(p.dataUrl){
+      var img=document.createElement('img');
+      img.src=p.dataUrl;
+      img.style.cssText='width:100%;height:110px;object-fit:cover;display:block';
+      cell.appendChild(img);
+    }else{
+      var ph=document.createElement('div');
+      ph.style.cssText='height:110px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text3)';
+      ph.textContent='☁️ 已上雲（本機未保留）';
+      cell.appendChild(ph);
+    }
+    var bar=document.createElement('div');
+    bar.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:4px 8px;font-size:12px';
+    var status=document.createElement('span');
+    status.style.color='var(--text3)';
+    status.textContent=p.uploaded?'☁️ 已上傳':'📱 本機';
+    var del=document.createElement('span');
+    del.style.cssText='color:var(--red);cursor:pointer;font-weight:600';
+    del.textContent='移除';
+    (function(pid){del.onclick=function(){if(confirm('移除這張照片？'))removePhoto(pid)}})(p.id);
+    bar.appendChild(status);bar.appendChild(del);
+    cell.appendChild(bar);
+    grid.appendChild(cell);
+  });
+}
+function dataUrlToBlob(dataUrl){
+  var parts=dataUrl.split(',');
+  var mime=(parts[0].match(/data:(.*?);/)||[])[1]||'image/jpeg';
+  var bin=atob(parts[1]);
+  var arr=new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+  return new Blob([arr],{type:mime});
+}
+async function uploadPendingPhotos(reportId,dateStr){
+  if(!isCloudReady())return 0;
+  var client=getSupabaseClient();
+  if(!client)return 0;
+  var photos=loadPhotos();
+  var pending=photos.filter(function(p){return p.date===dateStr&&!p.uploaded&&p.dataUrl});
+  var done=0;
+  for(var i=0;i<pending.length;i++){
+    var p=pending[i];
+    var path=cloudState.projectId+'/'+dateStr+'/'+p.id+'.jpg';
+    var up=await client.storage.from('report-photos').upload(path,dataUrlToBlob(p.dataUrl),{upsert:true,contentType:'image/jpeg'});
+    if(up.error)throw up.error;
+    var row=await client.from('report_photos').upsert(
+      {report_id:reportId,storage_path:path,sort_order:i},
+      {onConflict:'report_id,storage_path'}
+    );
+    if(row.error)throw row.error;
+    p.uploaded=true;p.storagePath=path;done++;
+  }
+  if(done>0)savePhotos(photos);
+  return done;
+}
+// 本機空間管理：已上傳且超過 3 天的照片，只留雲端路徑、清掉 base64
+function cleanupOldPhotoData(){
+  var photos=loadPhotos();
+  var cutoff=new Date(getTodayStr());cutoff.setDate(cutoff.getDate()-3);
+  var cutoffStr=cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0')+'-'+String(cutoff.getDate()).padStart(2,'0');
+  var changed=false;
+  photos.forEach(function(p){
+    if(p.uploaded&&p.dataUrl&&p.date<cutoffStr){p.dataUrl=null;changed=true}
+  });
+  if(changed)savePhotos(photos);
 }
 
 // ===== 停工紀錄 =====
@@ -4428,6 +4717,30 @@ function renderPreview(){
   h+='<div class="pdf-footer">第 1 頁</div>';
   h+='</div>'; // close pdf-body
   pages.push(h);
+
+  // ===== 附件頁：現場照片 =====
+  var dayPhotos=getPhotosForDate(currentReportDate);
+  if(dayPhotos.length>0){
+    var photosWithData=dayPhotos.filter(function(p){return p.dataUrl});
+    var h2='';
+    h2+='<div class="pdf-title">營 建 工 程 管 理 日 報 表</div>';
+    h2+='<div class="pdf-company">'+escHtml(settings.companyName)+'</div>';
+    h2+='<div class="pdf-body">';
+    h2+='<div class="pdf-page-header">現場照片附件　'+currentReportDate+'（週'+dow+'）　'+escHtml(settings.projectName)+'</div>';
+    if(photosWithData.length>0){
+      h2+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+      photosWithData.forEach(function(p){
+        h2+='<div style="border:1px solid #333;padding:2px"><img src="'+p.dataUrl+'" style="width:100%;height:150px;object-fit:cover;display:block"></div>';
+      });
+      h2+='</div>';
+    }
+    if(photosWithData.length<dayPhotos.length){
+      h2+='<div style="font-size:10px;color:#666;margin-top:6px">另有 '+(dayPhotos.length-photosWithData.length)+' 張照片已上傳雲端（本機僅保留近 3 天照片，較舊照片請至雲端查看）</div>';
+    }
+    h2+='<div class="pdf-footer">附件：現場照片</div>';
+    h2+='</div>';
+    pages.push(h2);
+  }
 
   // ===== 渲染所有頁面 =====
   var container=document.getElementById('pdf-pages-container');

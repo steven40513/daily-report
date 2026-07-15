@@ -287,6 +287,58 @@ async function main() {
   window.goTo('screen-preview');
   const pdfSub = document.getElementById('pdf-page-1').innerHTML;
   assert('PDF marks subcontractor in red', pdfSub.includes('外包工程行C') && pdfSub.includes('（代工）'));
+  assert('PDF crew table has tomorrow column', pdfSub.includes('明日工作內容'));
+
+  // 現場照片測試
+  const tinyJpeg = 'data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+  let photoAdds = 0;
+  for (let i = 0; i < 6; i++) if (window.addPhotoRecord(window.currentReportDate, tinyJpeg)) photoAdds++;
+  assert('six photos accepted', photoAdds === 6);
+  assert('seventh photo rejected by daily limit', window.addPhotoRecord(window.currentReportDate, tinyJpeg) === false);
+  window.goTo('screen-step5');
+  assert('photo grid renders six cells', document.getElementById('photo-grid').children.length === 6);
+  assert('photo count label shows 6/6', document.getElementById('photo-count-label').textContent.includes('6/6'));
+  const firstPhoto = window.getPhotosForDate(window.currentReportDate)[0];
+  window.removePhoto(firstPhoto.id);
+  assert('photo removed from store and grid', window.getPhotosForDate(window.currentReportDate).length === 5 && document.getElementById('photo-grid').children.length === 5);
+  window.goTo('screen-preview');
+  const attachPage = document.getElementById('pdf-page-2');
+  assert('PDF photo attachment page exists', !!attachPage);
+  assert('attachment page titled 現場照片附件', attachPage.innerHTML.includes('現場照片附件'));
+  assert('attachment contains five photos', attachPage.querySelectorAll('img').length === 5);
+  const photosAll = window.loadPhotos();
+  photosAll.push({ id: 'old-photo', date: '2026-06-01', dataUrl: tinyJpeg, storagePath: 'p/x.jpg', uploaded: true });
+  window.savePhotos(photosAll);
+  window.cleanupOldPhotoData();
+  assert('old uploaded photo dataUrl stripped', window.loadPhotos().find(p => p.id === 'old-photo').dataUrl === null);
+  assert('recent photos keep dataUrl', window.getPhotosForDate(window.currentReportDate).every(p => p.dataUrl));
+
+  // 各專案總覽測試
+  const realProjects = window.cloudState.projects;
+  const realIsCloudReady2 = window.isCloudReady;
+  const realGetClient2 = window.getSupabaseClient;
+  window.isCloudReady = () => true;
+  window.cloudState.projects = [
+    { id: 'p1', name: '測試案A', start_date: '2026-06-01' },
+    { id: 'p2', name: '測試案B', start_date: '2026-06-01' }
+  ];
+  const chainFor = (result) => { const c = { select: () => c, in: () => c, gte: () => c, lte: () => c, then: (res, rej) => Promise.resolve(result).then(res, rej) }; return c; };
+  window.getSupabaseClient = () => ({
+    from: (t) => chainFor(t === 'daily_reports'
+      ? { data: [{ project_id: 'p1', report_date: window.getTodayStr() }], error: null }
+      : { data: [], error: null })
+  });
+  await window.renderProjectOverview();
+  const overviewText = document.getElementById('overview-list').textContent;
+  assert('overview shows filled project', overviewText.includes('測試案A') && overviewText.includes('今日已交'));
+  assert('overview shows pending project with missing streak', overviewText.includes('測試案B') && overviewText.includes('今日未交') && overviewText.includes('連續缺件 7 天'));
+  window.cloudState.projects = [{ id: 'a' }, { id: 'b' }];
+  window.updateProjectSwitcher();
+  assert('overview entry visible with multiple projects', document.getElementById('home-overview-entry').style.display === 'block');
+  window.cloudState.projects = realProjects;
+  window.updateProjectSwitcher();
+  window.isCloudReady = realIsCloudReady2;
+  window.getSupabaseClient = realGetClient2;
 
   console.log(`frontend-beta-test: ${results.length}/${results.length} checks passed`);
 }

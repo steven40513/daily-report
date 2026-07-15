@@ -11,6 +11,8 @@ const stoppagesMigrationPath = path.join(__dirname, '..', 'supabase', 'migration
 const stoppagesSql = fs.readFileSync(stoppagesMigrationPath, 'utf8');
 const vendorMigrationPath = path.join(__dirname, '..', 'supabase', 'migrations', '202607140002_report_items_vendor.sql');
 const vendorSql = fs.readFileSync(vendorMigrationPath, 'utf8');
+const photosMigrationPath = path.join(__dirname, '..', 'supabase', 'migrations', '202607140003_report_photos.sql');
+const photosSql = fs.readFileSync(photosMigrationPath, 'utf8');
 
 const checks = [
   ['companies table', /create table public\.companies\s*\(/i],
@@ -80,15 +82,27 @@ const vendorChecks = [
 ];
 const vendorFailures = vendorChecks.filter(([, pattern]) => !pattern.test(vendorSql));
 
-if (failures.length > 0 || seedFailures.length > 0 || crewFieldsFailures.length > 0 || stoppagesFailures.length > 0 || vendorFailures.length > 0) {
+const photosChecks = [
+  ['report_photos table', /create table if not exists public\.report_photos\s*\(/i],
+  ['report_photos unique path per report', /unique\s*\(\s*report_id\s*,\s*storage_path\s*\)/i],
+  ['report_photos RLS enabled', /alter table public\.report_photos enable row level security/i],
+  ['report photos storage bucket', /insert into storage\.buckets[\s\S]*'report-photos'/i],
+  ['storage select policy', /"report_photos_storage_select"/i],
+  ['storage insert policy', /"report_photos_storage_insert"/i],
+  ['storage delete policy', /"report_photos_storage_delete"/i],
+];
+const photosFailures = photosChecks.filter(([, pattern]) => !pattern.test(photosSql));
+
+if (failures.length > 0 || seedFailures.length > 0 || crewFieldsFailures.length > 0 || stoppagesFailures.length > 0 || vendorFailures.length > 0 || photosFailures.length > 0) {
   console.error('Supabase schema validation failed:');
   failures.forEach(([name]) => console.error(`- ${name}`));
   seedFailures.forEach(([name]) => console.error(`- ${name}`));
   crewFieldsFailures.forEach(([name]) => console.error(`- ${name}`));
   stoppagesFailures.forEach(([name]) => console.error(`- ${name}`));
   vendorFailures.forEach(([name]) => console.error(`- ${name}`));
+  photosFailures.forEach(([name]) => console.error(`- ${name}`));
   process.exit(1);
 }
 
-const totalChecks = checks.length + seedChecks.length + crewFieldsChecks.length + stoppagesChecks.length + vendorChecks.length;
+const totalChecks = checks.length + seedChecks.length + crewFieldsChecks.length + stoppagesChecks.length + vendorChecks.length + photosChecks.length;
 console.log(`validate-supabase-schema: ${totalChecks}/${totalChecks} checks passed`);
