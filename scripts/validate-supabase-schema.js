@@ -9,6 +9,8 @@ const crewFieldsMigrationPath = path.join(__dirname, '..', 'supabase', 'migratio
 const crewFieldsSql = fs.readFileSync(crewFieldsMigrationPath, 'utf8');
 const stoppagesMigrationPath = path.join(__dirname, '..', 'supabase', 'migrations', '202607140001_stoppages_and_backfill.sql');
 const stoppagesSql = fs.readFileSync(stoppagesMigrationPath, 'utf8');
+const vendorMigrationPath = path.join(__dirname, '..', 'supabase', 'migrations', '202607140002_report_items_vendor.sql');
+const vendorSql = fs.readFileSync(vendorMigrationPath, 'utf8');
 
 const checks = [
   ['companies table', /create table public\.companies\s*\(/i],
@@ -73,14 +75,20 @@ const stoppagesChecks = [
 ];
 const stoppagesFailures = stoppagesChecks.filter(([, pattern]) => !pattern.test(stoppagesSql));
 
-if (failures.length > 0 || seedFailures.length > 0 || crewFieldsFailures.length > 0 || stoppagesFailures.length > 0) {
+const vendorChecks = [
+  ['report_items vendor column', /alter table public\.report_items[\s\S]*add column if not exists vendor text not null default ''/i],
+];
+const vendorFailures = vendorChecks.filter(([, pattern]) => !pattern.test(vendorSql));
+
+if (failures.length > 0 || seedFailures.length > 0 || crewFieldsFailures.length > 0 || stoppagesFailures.length > 0 || vendorFailures.length > 0) {
   console.error('Supabase schema validation failed:');
   failures.forEach(([name]) => console.error(`- ${name}`));
   seedFailures.forEach(([name]) => console.error(`- ${name}`));
   crewFieldsFailures.forEach(([name]) => console.error(`- ${name}`));
   stoppagesFailures.forEach(([name]) => console.error(`- ${name}`));
+  vendorFailures.forEach(([name]) => console.error(`- ${name}`));
   process.exit(1);
 }
 
-const totalChecks = checks.length + seedChecks.length + crewFieldsChecks.length + stoppagesChecks.length;
+const totalChecks = checks.length + seedChecks.length + crewFieldsChecks.length + stoppagesChecks.length + vendorChecks.length;
 console.log(`validate-supabase-schema: ${totalChecks}/${totalChecks} checks passed`);

@@ -1183,6 +1183,7 @@ function mapReportItemsForSupabase(reportId,data){
         unit:item.unit||'',
         quantity:Number(item.qty)||0,
         is_checked:!!item.checked,
+        vendor:item.vendor||'',
         is_custom:cat==='other',
         sort_order:idx
       });
@@ -1198,6 +1199,7 @@ function mapReportItemsForSupabase(reportId,data){
         unit:item.unit||'',
         quantity:Number(item.qty)||0,
         is_checked:!!item.checked,
+        vendor:item.vendor||'',
         is_custom:false,
         sort_order:idx
       });
@@ -1264,6 +1266,7 @@ function mapSupabaseReportToLocalData(report,items){
       name:item.name||'',
       unit:item.unit||'',
       checked:!!item.is_checked,
+      vendor:item.vendor||'',
       qty:item.quantity===null||item.quantity===undefined?'':String(item.quantity)
     };
     if(item.item_type==='crew'){
@@ -1428,7 +1431,7 @@ async function loadCurrentReportFromSupabase(){
     }
     var report=reportResult.data;
     var itemResult=await client.from('report_items')
-      .select('item_type,category,name,unit,quantity,is_checked,sort_order')
+      .select('item_type,category,name,unit,quantity,is_checked,vendor,sort_order')
       .eq('report_id',report.id)
       .order('sort_order',{ascending:true});
     assertSupabaseOk(itemResult,'讀取日報明細失敗');
@@ -1685,7 +1688,7 @@ async function cloudLoadReport(dateStr){
     if(!reportResult.data)return null;
     var report=reportResult.data;
     var itemResult=await client.from('report_items')
-      .select('item_type,category,name,unit,quantity,is_checked,is_custom,sort_order')
+      .select('item_type,category,name,unit,quantity,is_checked,vendor,is_custom,sort_order')
       .eq('report_id',report.id)
       .order('sort_order',{ascending:true});
     if(itemResult.error)throw itemResult.error;
@@ -2955,7 +2958,7 @@ async function collectRangeDataCloud(start,end){
   var idToDate={};
   var ids=reports.map(function(r){idToDate[r.id]=r.report_date;return r.id});
   var itemResult=await client.from('report_items')
-    .select('report_id,item_type,name,unit,quantity,is_checked')
+    .select('report_id,item_type,name,unit,quantity,is_checked,vendor')
     .in('report_id',ids);
   if(itemResult.error)throw itemResult.error;
   var logResult=await client.from('work_logs')
@@ -2967,7 +2970,7 @@ async function collectRangeDataCloud(start,end){
   (itemResult.data||[]).forEach(function(item){
     var ds=idToDate[item.report_id];
     if(!ds||!item.is_checked)return;
-    var row={name:item.name||'',unit:item.unit||'',qty:Number(item.quantity)||0,vendor:''};
+    var row={name:item.name||'',unit:item.unit||'',qty:Number(item.quantity)||0,vendor:item.vendor||''};
     if(item.item_type==='material')days[ds].materials.push(row);
     else if(item.item_type==='equipment')days[ds].equipment.push(row);
   });

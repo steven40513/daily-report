@@ -243,6 +243,20 @@ async function main() {
   assert('summary note mentions cloud', document.getElementById('summary-source-note').textContent.includes('雲端'));
   window.collectRangeDataCloud = realCollectCloud;
 
+  // vendor 欄位雲端同步測試
+  const vendorItems = window.mapReportItemsForSupabase('rep-1', {
+    crew: [],
+    materials: { concrete: [{ name: '測試砂', unit: '米', checked: true, qty: '3', vendor: '砂石行A' }] },
+    equipment: { dig: [{ name: '測試怪手', unit: 'hr', checked: true, qty: '8' }] }
+  });
+  assert('material vendor synced to cloud payload', vendorItems.find(i => i.name === '測試砂').vendor === '砂石行A');
+  assert('missing vendor defaults to empty string', vendorItems.find(i => i.name === '測試怪手').vendor === '');
+  const vendorMapped = window.mapSupabaseReportToLocalData(
+    { report_date: '2026-06-19', construction_days: 19, notes: '' },
+    [{ item_type: 'material', category: 'concrete', name: '測試砂', unit: '米', quantity: 3, is_checked: true, vendor: '砂石行A' }]
+  );
+  assert('cloud vendor restored to local data', vendorMapped.materials.concrete[0].vendor === '砂石行A');
+
   console.log(`frontend-beta-test: ${results.length}/${results.length} checks passed`);
 }
 
