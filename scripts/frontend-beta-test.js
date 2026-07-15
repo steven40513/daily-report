@@ -340,6 +340,47 @@ async function main() {
   window.isCloudReady = realIsCloudReady2;
   window.getSupabaseClient = realGetClient2;
 
+  // ① 複製昨日出工測試
+  const copySrc = window.loadCrewEntries();
+  copySrc.push({ id: 'copy-src-1', date: '2026-06-25', category: 'structure', subtype: '複製測試工', headcount: 9, location: 'B1F', workToday: '今日內容X', workTomorrow: '明日內容Y', contractor: '複製廠商行', am: true, pm: false, hours: 4, isSubcontractor: true, subcontractorName: '代工丙' });
+  window.saveCrewEntries(copySrc);
+  const copiedN = window.copyCrewEntriesFromDate('2026-06-25', '2026-06-26');
+  assert('copy returns count', copiedN === 1);
+  const copied = window.loadCrewEntries().find(e => e.date === '2026-06-26' && e.subtype === '複製測試工');
+  assert('copied entry keeps location/contractor', copied.location === 'B1F' && copied.contractor === '複製廠商行');
+  assert('yesterday tomorrow becomes today content', copied.workToday === '明日內容Y' && copied.workTomorrow === '');
+  assert('copied entry keeps headcount and subcontractor', copied.headcount === 9 && copied.isSubcontractor === true && copied.subcontractorName === '代工丙');
+  assert('copied entry has new id', copied.id !== 'copy-src-1');
+  window.crewCopiedCount = 2;
+  window.goTo('screen-step2');
+  assert('copied banner shows on step2', document.getElementById('crew-copied-banner').style.display === 'block');
+  window.crewCopiedCount = 0;
+
+  // ② 廠商快速標籤測試
+  window.saveReport('2026-07-10', { date: '2026-07-10', materials: { concrete: [{ name: '標籤測試材', unit: '包', checked: true, qty: '2', vendor: '標籤廠商甲' }] }, equipment: {} });
+  const sugItem = window.getVendorSuggestions('material', '標籤測試材');
+  assert('item-specific vendor suggested first', sugItem[0] === '標籤廠商甲');
+  const sugCrew = window.getVendorSuggestions('crew', '鋼筋工');
+  assert('crew contractor suggested for subtype', sugCrew.includes('鋼筋行B'));
+  window.goTo('screen-step3');
+  const anyVendorInput = document.querySelector('.mat-group[data-cat="concrete"] .item-vendor');
+  anyVendorInput.dispatchEvent(new window.Event('focus'));
+  assert('vendor suggestion chips appear on focus', !!document.querySelector('.vendor-suggest-box'));
+  window.removeVendorSuggestBox();
+
+  // ③ 今日無進場標記測試
+  document.querySelectorAll('.mat-group .item-check.on').forEach(el => el.classList.remove('on'));
+  window.markNoEntry('materials');
+  assert('markNoEntry navigates to step4', document.querySelector('.screen.active')?.id === 'screen-step4');
+  assert('noMaterials flag captured', window.collectReportData().noMaterials === true);
+  assert('no-entry button shows marked state', document.getElementById('btn-no-materials').textContent.includes('已標記'));
+  window.goTo('screen-preview');
+  assert('PDF shows 本日無進場 for materials', document.getElementById('pdf-page-1').innerHTML.includes('本日無進場'));
+  window.goTo('screen-step3');
+  const firstCheck = document.querySelector('.mat-group[data-cat="concrete"] .item-check');
+  firstCheck.classList.add('on');
+  assert('checking any material auto-cancels flag', window.collectReportData().noMaterials === false);
+
   console.log(`frontend-beta-test: ${results.length}/${results.length} checks passed`);
 }
 

@@ -333,7 +333,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
     <div style="font-size:15px;font-weight:600;color:#2e7d32;margin-bottom:6px">📋 今日尚未填寫日報</div>
     <div style="font-size:13px;color:#558b2f;margin-bottom:10px">每天從空白開始，確保資料正確</div>
     <button class="btn" onclick="copyYesterdayReport()" id="copy-yesterday-btn" style="background:#43a047;color:#fff;padding:10px 20px;font-size:14px;border:none;border-radius:8px;cursor:pointer;width:100%">📋 複製昨天日報作為今日底稿</button>
-    <div style="font-size:12px;color:#7cb342;margin-top:6px">複製後仍可自由修改所有欄位</div>
+    <div style="font-size:12px;color:#7cb342;margin-top:6px">會帶入：出工卡片（工別/位置/內容/廠商）、材料機具清單<br>需重新填：天氣、勾選與數量、備註</div>
   </div>
   <div class="content fade-in">
     <div class="card">
@@ -385,6 +385,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   </div>
   <div class="step-label">步驟 2 / 5 — 工別紀錄</div>
   <div class="content fade-in">
+
+    <div id="crew-copied-banner" style="display:none;background:#FAEEDA;color:#854F0B;border:1px solid #FAC775;border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:10px"></div>
 
     <div class="cat-grid" id="crew-cats"></div>
 
@@ -478,7 +480,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
       </div>
     </div>
 
-    <div style="display:flex;gap:8px;margin-top:14px">
+    <button class="btn btn-outline" id="btn-no-materials" onclick="markNoEntry('materials')" style="width:100%;margin-top:14px">今日無材料進場</button>
+
+    <div style="display:flex;gap:8px;margin-top:8px">
       <button class="btn btn-outline" onclick="goTo('screen-step2')" style="flex:1">← 上一步</button>
       <button class="btn btn-primary" onclick="goTo('screen-step4')" style="flex:1">下一步 →</button>
     </div>
@@ -549,7 +553,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
       </div>
     </div>
 
-    <div style="display:flex;gap:8px;margin-top:14px">
+    <button class="btn btn-outline" id="btn-no-equipment" onclick="markNoEntry('equipment')" style="width:100%;margin-top:14px">今日無機具進場</button>
+
+    <div style="display:flex;gap:8px;margin-top:8px">
       <button class="btn btn-outline" onclick="goTo('screen-step3')" style="flex:1">← 上一步</button>
       <button class="btn btn-primary" onclick="goTo('screen-step5')" style="flex:1">下一步 →</button>
     </div>
@@ -1979,6 +1985,13 @@ function collectReportData(){
       });
     });
   });
+  // 無進場標記：勾了任何品項就自動取消（避免「標了無進場又有材料」的矛盾）
+  var anyMatChecked=Object.keys(data.materials).some(function(cat){return data.materials[cat].some(function(it){return it.checked})});
+  var anyEquipChecked=Object.keys(data.equipment).some(function(cat){return data.equipment[cat].some(function(it){return it.checked})});
+  if(anyMatChecked)noEntryFlags.materials=false;
+  if(anyEquipChecked)noEntryFlags.equipment=false;
+  data.noMaterials=noEntryFlags.materials&&!anyMatChecked;
+  data.noEquipment=noEntryFlags.equipment&&!anyEquipChecked;
   // 備註
   var tas=document.querySelectorAll('#screen-step5 textarea');
   data.progress={
@@ -1993,6 +2006,10 @@ function collectReportData(){
 // ===== 資料 → UI：從資料填充畫面 =====
 function populateReportUI(data){
   if(!data)return;
+  // 無進場標記還原
+  noEntryFlags.materials=!!data.noMaterials;
+  noEntryFlags.equipment=!!data.noEquipment;
+  updateNoEntryButtons();
   // 天氣
   var weatherCols=document.querySelectorAll('#screen-step1 .weather-col');
   var weatherMap={'晴':0,'陰':1,'雨':2};
@@ -2037,6 +2054,7 @@ function populateReportUI(data){
         var vendorInput=document.createElement('input');vendorInput.className='item-vendor';
         vendorInput.value=item.vendor||'';vendorInput.placeholder='廠商';
         vendorInput.style.cssText='width:64px;height:38px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;padding:0 6px;margin-left:4px';
+        attachVendorSuggestions(vendorInput,'material',item.name,function(){autoSave()});
         row.appendChild(check);row.appendChild(nameSpan);row.appendChild(qtyInput);row.appendChild(unitSpan);row.appendChild(vendorInput);
         group.appendChild(row);
       });
@@ -2060,6 +2078,7 @@ function populateReportUI(data){
         var vendorInput=document.createElement('input');vendorInput.className='item-vendor';
         vendorInput.value=item.vendor||'';vendorInput.placeholder='廠商';
         vendorInput.style.cssText='width:64px;height:38px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;padding:0 6px;margin-left:4px';
+        attachVendorSuggestions(vendorInput,'equipment',item.name,function(){autoSave()});
         row.appendChild(check);row.appendChild(nameSpan);row.appendChild(qtyInput);row.appendChild(unitSpan);row.appendChild(vendorInput);
         group.appendChild(row);
       });
@@ -2397,6 +2416,148 @@ function showCopyBanner(show,prevDateStr){
   }
 }
 
+// 複製前一日的工別紀錄卡片（位置/內容/廠商照搬，昨日「明日內容」→今日「今日內容」）。
+// 這是 opt-in 複製流程的一部分，維持「使用者主動選擇」的防錯原則。
+var crewCopiedCount=0;
+function copyCrewEntriesFromDate(prevDateStr,targetDateStr){
+  var prevEntries=loadCrewEntries().filter(function(e){return e.date===prevDateStr});
+  if(prevEntries.length===0)return 0;
+  var entries=loadCrewEntries().filter(function(e){return e.date!==targetDateStr});
+  prevEntries.forEach(function(p,i){
+    entries.push({
+      id:'crew-'+Date.now()+'-'+i+'-'+Math.random().toString(36).substr(2,5),
+      date:targetDateStr,
+      category:p.category,
+      subtype:p.subtype,
+      headcount:p.headcount||0,
+      location:p.location||'',
+      workToday:p.workTomorrow||p.workToday||'',
+      contractor:p.contractor||'',
+      am:p.am!==false,
+      pm:p.pm!==false,
+      hours:p.hours||0,
+      workTomorrow:'',
+      isSubcontractor:!!p.isSubcontractor,
+      subcontractorName:p.subcontractorName||''
+    });
+  });
+  saveCrewEntries(entries);
+  return prevEntries.length;
+}
+// ===== 廠商快速標籤 =====
+// 手機打廠商名稱很痛苦：從近 30 天本機日報撈「這個品項/情境用過的廠商」，
+// 顯示 2-3 個點選標籤。冷啟動時沒有標籤，用越久越準。零 schema 改動。
+function collectVendorHistory(){
+  var byItem={};var global={};
+  function bump(map,key){if(!key)return;map[key]=(map[key]||0)+1}
+  var today=new Date(getTodayStr());
+  for(var i=0;i<=30;i++){
+    var d=new Date(today);d.setDate(today.getDate()-i);
+    var ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    var rpt=loadReport(ds);
+    if(!rpt)continue;
+    [['materials','material'],['equipment','equipment']].forEach(function(pair){
+      Object.keys(rpt[pair[0]]||{}).forEach(function(cat){
+        (rpt[pair[0]][cat]||[]).forEach(function(item){
+          var v=(item.vendor||'').trim();
+          if(!v)return;
+          var key=pair[1]+':'+item.name;
+          if(!byItem[key])byItem[key]={};
+          bump(byItem[key],v);bump(global,v);
+        });
+      });
+    });
+  }
+  loadCrewEntries().forEach(function(e){
+    var c=(e.contractor||'').trim();
+    var s=(e.subcontractorName||'').trim();
+    if(c){var ck='crew:'+e.subtype;if(!byItem[ck])byItem[ck]={};bump(byItem[ck],c);bump(global,c)}
+    if(s){var sk='sub:'+e.subtype;if(!byItem[sk])byItem[sk]={};bump(byItem[sk],s);bump(global,s)}
+  });
+  return {byItem:byItem,global:global};
+}
+function getVendorSuggestions(kind,name,currentValue){
+  var hist=collectVendorHistory();
+  var picked=[];
+  function takeFrom(map){
+    if(!map)return;
+    Object.keys(map).sort(function(a,b){return map[b]-map[a]}).forEach(function(v){
+      if(picked.length>=3)return;
+      if(v===currentValue)return;
+      if(picked.indexOf(v)<0)picked.push(v);
+    });
+  }
+  takeFrom(hist.byItem[kind+':'+(name||'')]);
+  takeFrom(hist.global);
+  return picked;
+}
+// ===== 今日無進場標記 =====
+// 區分「沒填」與「確實沒有」：對缺件判斷與日後查帳有意義。
+var noEntryFlags={materials:false,equipment:false};
+function markNoEntry(kind){
+  noEntryFlags[kind]=true;
+  autoSave();
+  updateNoEntryButtons();
+  goTo(kind==='materials'?'screen-step4':'screen-step5');
+}
+function updateNoEntryButtons(){
+  var mb=document.getElementById('btn-no-materials');
+  if(mb){
+    mb.textContent=noEntryFlags.materials?'✓ 已標記今日無材料進場（勾選任何材料會取消）':'今日無材料進場';
+    mb.style.color=noEntryFlags.materials?'var(--green)':'';
+    mb.style.borderColor=noEntryFlags.materials?'var(--green)':'';
+  }
+  var eb=document.getElementById('btn-no-equipment');
+  if(eb){
+    eb.textContent=noEntryFlags.equipment?'✓ 已標記今日無機具進場（勾選任何機具會取消）':'今日無機具進場';
+    eb.style.color=noEntryFlags.equipment?'var(--green)':'';
+    eb.style.borderColor=noEntryFlags.equipment?'var(--green)':'';
+  }
+}
+
+var vendorSuggestBoxEl=null;
+function removeVendorSuggestBox(){
+  if(vendorSuggestBoxEl&&vendorSuggestBoxEl.parentNode)vendorSuggestBoxEl.parentNode.removeChild(vendorSuggestBoxEl);
+  vendorSuggestBoxEl=null;
+}
+function attachVendorSuggestions(inputEl,kind,name,onPick){
+  inputEl.addEventListener('focus',function(){
+    removeVendorSuggestBox();
+    var suggestions=getVendorSuggestions(kind,name,inputEl.value.trim());
+    if(suggestions.length===0)return;
+    var box=document.createElement('div');
+    box.className='vendor-suggest-box';
+    box.style.cssText='display:flex;gap:6px;flex-wrap:wrap;padding:6px 2px';
+    suggestions.forEach(function(v){
+      var chip=document.createElement('button');
+      chip.type='button';
+      chip.textContent=v;
+      chip.style.cssText='padding:6px 14px;border:1px solid var(--primary);color:var(--primary);background:var(--primary-light,#EFF6FF);border-radius:14px;font-size:13px;cursor:pointer';
+      chip.onmousedown=function(ev){
+        ev.preventDefault(); // 避免 blur 先發生吃掉點擊
+        inputEl.value=v;
+        if(onPick)onPick(v);
+        removeVendorSuggestBox();
+      };
+      box.appendChild(chip);
+    });
+    var host=inputEl.closest('.item-row')||inputEl;
+    host.parentNode.insertBefore(box,host.nextSibling);
+    vendorSuggestBoxEl=box;
+  });
+  inputEl.addEventListener('blur',function(){setTimeout(removeVendorSuggestBox,200)});
+}
+
+function updateCrewCopiedBanner(){
+  var banner=document.getElementById('crew-copied-banner');
+  if(!banner)return;
+  if(crewCopiedCount>0){
+    banner.style.display='block';
+    banner.textContent='📋 已帶入昨日 '+crewCopiedCount+' 筆出工，請逐筆確認人數與內容';
+  }else{
+    banner.style.display='none';
+  }
+}
 function copyYesterdayReport(){
   var banner=document.getElementById('copy-yesterday-banner');
   var prevDateStr=banner?banner.dataset.prevDate:null;
@@ -2409,6 +2570,7 @@ function copyYesterdayReport(){
   var settings=loadSettings();
   var draft=transformPreviousReport(prevReport,settings);
   populateReportUI(draft);
+  crewCopiedCount=copyCrewEntriesFromDate(prevDateStr,currentReportDate);
   // 立即存檔，標記今日已有資料
   autoSave();
   todayIsBlank=false;
@@ -2416,7 +2578,7 @@ function copyYesterdayReport(){
   // 顯示確認提示
   var tip=document.createElement('div');
   tip.style.cssText='position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#43a047;color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,0.2)';
-  tip.textContent='✅ 已複製 '+prevDateStr+' 日報，請確認並修改';
+  tip.textContent='✅ 已複製 '+prevDateStr+' 日報'+(crewCopiedCount>0?'（含 '+crewCopiedCount+' 筆出工）':'')+'，請確認並修改';
   document.body.appendChild(tip);
   setTimeout(function(){tip.remove()},3000);
 }
@@ -2788,8 +2950,9 @@ function goTo(id){
   document.getElementById(id).classList.add('active');
   window.scrollTo(0,0);
   if(id==='screen-home'){updateWeeklyStats();updateMissingReportBanner();}
-  if(id==='screen-step2'){renderCrewCategories();switchCrewCat(currentCrewCat);updateCrewTotal();}
+  if(id==='screen-step2'){renderCrewCategories();switchCrewCat(currentCrewCat);updateCrewTotal();updateCrewCopiedBanner();}
   if(id==='screen-settings'){loadSettingsUI();}
+  if(id==='screen-step3'||id==='screen-step4'){updateNoEntryButtons();}
   if(id==='screen-step5'){updateLogList();renderPhotoGrid();}
   if(id==='screen-history'){updateHistoryList();}
   if(id==='screen-summary-query'){initSummaryQuery();}
@@ -3849,6 +4012,7 @@ function buildCrewEntryCard(entry){
   contractorInput.value=entry.contractor||'';
   contractorInput.style.cssText='width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:8px';
   contractorInput.oninput=function(){updateCrewEntry(entry.id,'contractor',contractorInput.value)};
+  attachVendorSuggestions(contractorInput,'crew',entry.subtype,function(v){updateCrewEntry(entry.id,'contractor',v)});
 
   var removeBtn=document.createElement('div');
   removeBtn.style.cssText='text-align:right;font-size:12px;color:var(--text3);cursor:pointer';
@@ -3932,6 +4096,7 @@ function buildCrewEntryCard(entry){
   subNameInput.value=entry.subcontractorName||'';
   subNameInput.style.cssText='width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:8px;display:'+(entry.isSubcontractor?'block':'none');
   subNameInput.oninput=function(){updateCrewEntry(entry.id,'subcontractorName',subNameInput.value)};
+  attachVendorSuggestions(subNameInput,'sub',entry.subtype,function(v){updateCrewEntry(entry.id,'subcontractorName',v)});
   subCheck.onchange=function(){
     updateCrewEntry(entry.id,'isSubcontractor',subCheck.checked);
     subNameInput.style.display=subCheck.checked?'block':'none';
@@ -3993,6 +4158,7 @@ function goToStep3IfValid(){
     alert('「'+badSub.subtype+'」已勾選代工，請填寫代工廠商名稱');
     return;
   }
+  crewCopiedCount=0; // 通過驗證表示已確認過帶入的內容，提示可以收掉
   goTo('screen-step3');
 }
 
@@ -4681,11 +4847,15 @@ function renderPreview(){
     h+='<tr>';
     if(matItems[i]){
       h+='<td>'+escHtml(matItems[i].name)+'</td><td style="text-align:right">'+(matItems[i].qty||'—')+' '+escHtml(matItems[i].unit)+'</td><td style="text-align:right">'+fmtCumulative(matCum[matItems[i].name])+' '+escHtml(matItems[i].unit)+'</td><td style="font-size:11px">'+escHtml(matItems[i].vendor||'—')+'</td>';
+    }else if(i===0&&data.noMaterials){
+      h+='<td colspan="4" style="text-align:center;color:#666">本日無進場</td>';
     }else{
       h+='<td></td><td></td><td></td><td></td>';
     }
     if(equipItems[i]){
       h+='<td>'+escHtml(equipItems[i].name)+'</td><td style="text-align:right">'+(equipItems[i].qty||'—')+' '+escHtml(equipItems[i].unit)+'</td><td style="text-align:right">'+fmtCumulative(equipCum[equipItems[i].name])+' '+escHtml(equipItems[i].unit)+'</td><td style="font-size:11px">'+escHtml(equipItems[i].vendor||'—')+'</td>';
+    }else if(i===0&&data.noEquipment){
+      h+='<td colspan="4" style="text-align:center;color:#666">本日無進場</td>';
     }else{
       h+='<td></td><td></td><td></td><td></td>';
     }
